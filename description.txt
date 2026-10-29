@@ -1,0 +1,14 @@
+I want to create a game where my phone will be the pawn.
+It will be a pirate ship.
+other players will also add their phone to the game.
+each players phone is their own pirate ship.
+the game should be made with plain javascript css and html.
+the game will be deployed to github pages.
+a player should get a turn while their phone is on the table as the pawn.
+their should be a starting screen to setup the game.
+their should be a setup lobby where players can connect through a 4 letter/number room code.
+their should be a game loop where players get a turn.
+when a player has their turn they can upgrade, move, attack close players, hire new crew, come across different islands.
+the position of the phone on the table is the position on the map.
+phone can move a little bit every turn.
+you can give me some ideas i will correct where possible.
