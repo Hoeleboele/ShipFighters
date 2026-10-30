@@ -66,10 +66,10 @@
     const { faction, army } = fixture();
     army.entries.push({ id: 'e1', buildingId: 'b1', unitPicks: ['u1', 'u2'] });
     army.entries.push({ id: 'e2', buildingId: 'gone', unitPicks: [] });
-    faction.buildings[1].eligibleUnitIds = ['u2'];
+    faction.buildings[1].units = 1;
     const pruned = WHQ.model.pruneArmy(army, faction);
     eq(pruned.entries.length, 1);
-    eq(pruned.entries[0].unitPicks, ['u2']);
+    eq(pruned.entries[0].unitPicks, ['u1']);
   });
 
   // --- army ---

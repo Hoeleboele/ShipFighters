@@ -48,26 +48,50 @@
       </article>`;
     }
 
-    function unitCard(u) {
-      const def = model.findUnit(state.faction, u.unitId);
+    function originName(u) {
       const origin = state.buildings.find((b) => b.entryId === u.entryId);
       const bDef = origin && model.findBuilding(state.faction, origin.buildingId);
+      return bDef ? bDef.name : '';
+    }
+
+    function groupByType(units) {
+      const groups = new Map();
+      for (const u of units) {
+        if (!groups.has(u.unitId)) groups.set(u.unitId, []);
+        groups.get(u.unitId).push(u);
+      }
+      return [...groups.entries()];
+    }
+
+    function unitGroupCard([unitId, units]) {
+      const def = model.findUnit(state.faction, unitId);
       if (!def) return '';
-      return `<details class="card unit ${u.activated ? 'exhausted' : ''}" data-unit-card="${esc(u.id)}" ${openUnits.has(u.id) ? 'open' : ''}>
-        <summary class="card-head">
-          <h3>${esc(def.name)}</h3>
-          <span class="unit-meta">
-            ${u.activated ? '<span class="badge grey">Activated</span>' : ''}
-            <span class="muted">${esc(bDef ? bDef.name : '')}</span>
-          </span>
-        </summary>
+      const ready = units.filter((u) => !u.activated);
+      return `<article class="card unit compact ${ready.length ? '' : 'exhausted'}">
+        <div class="card-head">
+          <h3>${esc(def.name)} <span class="count">&times;${units.length}</span></h3>
+          <span class="muted">${ready.length} ready</span>
+        </div>
         ${ui.statline(def)}
         ${ui.abilities(def.abilities)}
-        ${u.dead ? '' : `<div class="actions">
-          ${u.activated ? '' : cpBtn('Activate', 'activate', `data-unit="${esc(u.id)}"`)}
-          <button class="btn small danger" data-a="kill" data-unit="${esc(u.id)}">Slain</button>
-        </div>`}
-      </details>`;
+        <div class="actions">
+          ${ready.length ? cpBtn('Activate one', 'activate', `data-unit="${esc(ready[0].id)}"`) : '<span class="badge grey">All activated</span>'}
+        </div>
+        <details class="instances" data-unit-card="${esc(unitId)}" ${openUnits.has(unitId) ? 'open' : ''}>
+          <summary>Individual units</summary>
+          <ul class="slots">${units.map((u) => `<li>
+            <span>${esc(originName(u))} ${u.activated ? '<span class="badge grey">Activated</span>' : ''}</span>
+            <button class="btn small danger" data-a="kill" data-unit="${esc(u.id)}">Slain</button>
+          </li>`).join('')}</ul>
+        </details>
+      </article>`;
+    }
+
+    function fallenList(units) {
+      return `<ul class="slots">${groupByType(units).map(([unitId, list]) => {
+        const def = model.findUnit(state.faction, unitId);
+        return `<li><span>${esc(def ? def.name : 'Unknown')}</span><span class="count">&times;${list.length}</span></li>`;
+      }).join('')}</ul>`;
     }
 
     function render() {
@@ -92,8 +116,8 @@
         <section class="list">
           ${activeTab === 'base'
             ? state.buildings.map(buildingCard).join('')
-            : (alive.length ? alive.map(unitCard).join('') : ui.empty('No units on the field. Create them from your buildings.'))
-              + (dead.length ? `<details class="fallen"><summary>Fallen (${dead.length})</summary>${dead.map(unitCard).join('')}</details>` : '')}
+            : (alive.length ? groupByType(alive).map(unitGroupCard).join('') : ui.empty('No units on the field. Create them from your buildings.'))
+              + (dead.length ? `<details class="fallen"><summary>Fallen (${dead.length})</summary>${fallenList(dead)}</details>` : '')}
         </section>`;
     }
 
