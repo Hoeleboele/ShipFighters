@@ -1,200 +1,230 @@
-import { applyIntent, createState, planPath, getPlayer, fireTargets, maxMp, tileIndex } from './rules.js';
-import { generateMap } from './map.js';
+(function (WHQ) {
+  'use strict';
 
-const results = [];
-function test(name, fn) {
-  try {
-    fn();
-    results.push({ name, ok: true });
-  } catch (err) {
-    results.push({ name, ok: false, msg: err.message });
+  const tests = [];
+  const test = (name, fn) => tests.push({ name, fn });
+
+  function assert(cond, msg) {
+    if (!cond) throw new Error(msg || 'Assertion failed');
   }
-}
-function assert(cond, msg) {
-  if (!cond) throw new Error(msg || 'assertion failed');
-}
-const fixedRng = values => {
-  let i = 0;
-  return () => values[i++ % values.length];
-};
 
-function act(s, pid, intent, opts = {}) {
-  const res = applyIntent(s, pid, intent, { rng: () => 0.5, ...opts });
-  if (res.error) throw new Error(`${intent.type}: ${res.error}`);
-  return res.state;
-}
+  function eq(actual, expected, msg) {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new Error(`${msg || 'Not equal'}: expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`);
+    }
+  }
 
-// Two ships on an all-sea 10x6 map, A to move, wind blowing North.
-function setup() {
-  let s = createState('TEST', 'seed');
-  s = act(s, 'A', { type: 'join', name: 'Anna' }, { isHost: true });
-  s = act(s, 'B', { type: 'join', name: 'Bob' });
-  s = act(s, 'A', { type: 'startLineup' }, { isHost: true });
-  s.map.tiles = s.map.tiles.map(() => ({ type: 'sea' }));
-  s = act(s, 'A', { type: 'startGame' }, { isHost: true, rng: () => 0 });
-  return s;
-}
-const setTile = (s, x, y, type) => { s.map.tiles[tileIndex(s.map, x, y)] = { type }; };
+  function throws(fn, msg) {
+    try {
+      fn();
+    } catch {
+      return;
+    }
+    throw new Error(msg || 'Expected an error');
+  }
 
-test('same seed generates the same map', () => {
-  const a = JSON.stringify(generateMap(12, 6, 'X'));
-  const b = JSON.stringify(generateMap(12, 6, 'X'));
-  assert(a === b);
-  assert(JSON.stringify(generateMap(12, 6, 'Y')) !== a, 'different seeds should differ');
-});
+  function fixture() {
+    const faction = WHQ.model.normalizeFaction({
+      id: 'f1',
+      name: 'Iron Court',
+      units: [
+        { id: 'u1', name: 'Knight', health: 3, attack: 4, defense: 3, dodge: 1, range: 'melee' },
+        { id: 'u2', name: 'Archer', health: 1, attack: 2, defense: 1, dodge: 2, range: 12 },
+      ],
+      buildings: [
+        { id: 'hq', name: 'Keep', cost: 30, generation: 1, units: 1, eligibleUnitIds: ['u1'], abilities: [{ name: 'Rally', text: 'x' }] },
+        { id: 'b1', name: 'Barracks', cost: 20, generation: 0, units: 3, eligibleUnitIds: ['u1', 'u2'] },
+        { id: 'b2', name: 'Farm', cost: 10, generation: 2, units: 0 },
+      ],
+      hqBuildingId: 'hq',
+    });
+    const army = WHQ.model.newArmy('f1');
+    army.name = 'Vanguard';
+    army.budget = 100;
+    return { faction, army };
+  }
 
-test('start row stays open sea', () => {
-  const m = generateMap(12, 6, 'Z');
-  for (let x = 0; x < 12; x++) assert(m.tiles[5 * 12 + x].type === 'sea');
-});
+  // --- model ---
+  test('normalizeFaction sanitises bad input', () => {
+    const f = WHQ.model.normalizeFaction({
+      name: 5,
+      units: [null, { id: 'a', health: '7', range: 'far' }, { id: 'a' }],
+      buildings: [{ units: 9, eligibleUnitIds: ['a', 'missing', 'a'] }],
+      hqBuildingId: 'nope',
+    });
+    eq(f.name, '');
+    eq(f.units.length, 3);
+    eq(f.units[1].health, 7);
+    eq(f.units[1].range, 'melee');
+    assert(f.units[1].id !== f.units[2].id, 'duplicate ids fixed');
+    eq(f.buildings[0].units, 3);
+    eq(f.buildings[0].eligibleUnitIds, ['a']);
+    eq(f.hqBuildingId, null);
+  });
 
-test('step cost follows the wind (tail 2, side 3, head 6)', () => {
-  const s = setup();
-  const a = getPlayer(s, 'A');
-  s.wind = 0;
-  assert(planPath(s, a, ['F']).cost === 2, 'tailwind');
-  s.wind = 1;
-  assert(planPath(s, a, ['F']).cost === 3, 'side wind');
-  s.wind = 2;
-  assert(planPath(s, a, ['F']).cost === 6, 'headwind');
-});
+  test('pruneArmy drops removed buildings and units', () => {
+    const { faction, army } = fixture();
+    army.entries.push({ id: 'e1', buildingId: 'b1', unitPicks: ['u1', 'u2'] });
+    army.entries.push({ id: 'e2', buildingId: 'gone', unitPicks: [] });
+    faction.buildings[1].eligibleUnitIds = ['u2'];
+    const pruned = WHQ.model.pruneArmy(army, faction);
+    eq(pruned.entries.length, 1);
+    eq(pruned.entries[0].unitPicks, ['u2']);
+  });
 
-test('turning alone is rejected', () => {
-  const s = setup();
-  assert(planPath(s, getPlayer(s, 'A'), ['L']).error);
-});
+  // --- army ---
+  test('single eligible unit fills every slot', () => {
+    const { faction, army } = fixture();
+    faction.buildings[1].eligibleUnitIds = ['u2'];
+    army.entries.push({ id: 'e1', buildingId: 'b1', unitPicks: [] });
+    eq(WHQ.model.pruneArmy(army, faction).entries[0].unitPicks, ['u2', 'u2', 'u2']);
+  });
 
-test('two turns in a row are rejected', () => {
-  const s = setup();
-  assert(planPath(s, getPlayer(s, 'A'), ['F', 'L', 'L', 'F']).error);
-});
+  test('army cost and budget limit', () => {
+    const { faction, army } = fixture();
+    army.budget = 50;
+    army.entries.push(WHQ.model.newEntry('hq'));
+    eq(WHQ.army.cost(army, faction), 30);
+    eq(WHQ.army.cannotAdd(army, faction, 'b1'), null);
+    army.entries.push(WHQ.model.newEntry('b1'));
+    eq(WHQ.army.cannotAdd(army, faction, 'b2'), 'Not enough points');
+  });
 
-test('turn, forward, turn is accepted and costs MP', () => {
-  const s = setup();
-  s.wind = 1;
-  const plan = planPath(s, getPlayer(s, 'A'), ['R', 'F', 'R']);
-  assert(!plan.error, plan.error);
-  assert(plan.cost === 1 + 2 + 1, `cost ${plan.cost}`);
-});
+  test('same building max 3 and only one HQ', () => {
+    const { faction, army } = fixture();
+    army.entries.push(WHQ.model.newEntry('hq'));
+    eq(WHQ.army.cannotAdd(army, faction, 'hq'), 'Only one HQ');
+    for (let i = 0; i < 3; i++) army.entries.push(WHQ.model.newEntry('b2'));
+    eq(WHQ.army.cannotAdd(army, faction, 'b2'), 'Max 3');
+  });
 
-test('turning after an earlier forward step is allowed', () => {
-  let s = setup();
-  s.wind = 0;
-  s = act(s, 'A', { type: 'sail', steps: ['F'] });
-  assert(!planPath(s, getPlayer(s, 'A'), ['L']).error);
-});
+  test('validate requires exactly one HQ and a name', () => {
+    const { faction, army } = fixture();
+    army.name = '';
+    const errors = WHQ.army.validate(army, faction);
+    assert(errors.some((e) => e.includes('name')));
+    assert(errors.some((e) => e.includes('HQ')));
+    army.name = 'A';
+    army.entries.push(WHQ.model.newEntry('hq'));
+    eq(WHQ.army.validate(army, faction), []);
+  });
 
-test('unused MP resets next turn', () => {
-  let s = setup();
-  s = act(s, 'A', { type: 'sail', steps: ['F'] });
-  s = act(s, 'A', { type: 'endTurn' });
-  s = act(s, 'B', { type: 'endTurn' });
-  assert(s.turn.mp === maxMp(getPlayer(s, 'A')));
-});
+  test('roster lists picked units, duplicates allowed', () => {
+    const { faction, army } = fixture();
+    army.entries.push({ id: 'e1', buildingId: 'b1', unitPicks: ['u2', 'u2'] });
+    eq(WHQ.army.roster(army, faction).map((r) => r.unit.name), ['Archer', 'Archer']);
+  });
 
-test('a 3rd navigator adds no MP', () => {
-  const s = setup();
-  const a = getPlayer(s, 'A');
-  a.crew.navigator = 2;
-  const two = maxMp(a);
-  a.crew.navigator = 3;
-  assert(maxMp(a) === two && two === 10);
-});
+  // --- game ---
+  function startGame() {
+    const { faction, army } = fixture();
+    army.entries.push({ id: 'eHq', buildingId: 'hq', unitPicks: ['u1'] });
+    army.entries.push({ id: 'eB', buildingId: 'b1', unitPicks: ['u1', 'u2', 'u2'] });
+    army.entries.push({ id: 'eF', buildingId: 'b2', unitPicks: [] });
+    return WHQ.game.newGame(faction, army);
+  }
 
-test('reef deals 1 damage and stops movement', () => {
-  let s = setup();
-  s.wind = 0;
-  const a = getPlayer(s, 'A');
-  setTile(s, a.x, a.y - 1, 'reef');
-  s = act(s, 'A', { type: 'sail', steps: ['F', 'F'] });
-  const a2 = getPlayer(s, 'A');
-  assert(a2.hp === 9 && a2.y === a.y - 1, `hp ${a2.hp} y ${a2.y}`);
-});
+  test('new game: HQ built, CP = 3 + HQ generation', () => {
+    const s = startGame();
+    eq(s.round, 1);
+    eq(s.cp, 4);
+    eq(s.buildings.map((b) => b.built), [true, false, false]);
+  });
 
-test('storm roll 1-3 deals 2 damage', () => {
-  let s = setup();
-  s.wind = 0;
-  const a = getPlayer(s, 'A');
-  setTile(s, a.x, a.y - 1, 'storm');
-  s = act(s, 'A', { type: 'sail', steps: ['F'] }, { rng: () => 0 });
-  assert(getPlayer(s, 'A').hp === 8);
-});
+  test('build, create, activate spend CP', () => {
+    let s = startGame();
+    s = WHQ.game.build(s, 'eB');
+    s = WHQ.game.createUnit(s, 'eB', 1);
+    s = WHQ.game.activateUnit(s, s.units[0].id);
+    eq(s.cp, 1);
+    throws(() => WHQ.game.activateUnit(s, s.units[0].id), 'cannot activate twice');
+  });
 
-test('ships in fog cannot be fired at but can be boarded', () => {
-  let s = setup();
-  const a = getPlayer(s, 'A');
-  const b = getPlayer(s, 'B');
-  // B is directly starboard of A after line-up.
-  assert(fireTargets(s, a, 'starboard').some(q => q.id === 'B'), 'B in range');
-  setTile(s, b.x, b.y, 'fog');
-  assert(!fireTargets(s, a, 'starboard').length, 'fog hides B');
-  a.crew.boarder = 1;
-  s = act(s, 'A', { type: 'board', target: 'B' });
-  assert(getPlayer(s, 'A').gold === 13);
-});
+  test('cannot act without CP', () => {
+    let s = startGame();
+    s = { ...s, cp: 0 };
+    throws(() => WHQ.game.build(s, 'eB'));
+  });
 
-test('cannons only fire to the sides', () => {
-  const s = setup();
-  const a = getPlayer(s, 'A');
-  assert(!fireTargets(s, a, 'port').length);
-  getPlayer(s, 'B').x = a.x;
-  getPlayer(s, 'B').y = a.y - 1;
-  assert(!fireTargets(s, a, 'starboard').length, 'bow is not a broadside');
-});
+  test('create requires built building and free slot', () => {
+    let s = startGame();
+    throws(() => WHQ.game.createUnit(s, 'eB', 0), 'unbuilt');
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    throws(() => WHQ.game.createUnit(s, 'eHq', 0), 'slot taken');
+    s = WHQ.game.killUnit(s, s.units[0].id);
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    eq(s.units.filter((u) => !u.dead).length, 1);
+  });
 
-test('sinking respawns, gives half gold to the attacker, skips a turn', () => {
-  let s = setup();
-  const b = getPlayer(s, 'B');
-  b.hp = 1;
-  b.gold = 20;
-  setTile(s, 0, 0, 'port');
-  s = act(s, 'A', { type: 'fire', side: 'starboard', target: 'B' }, { rng: () => 0.99 });
-  const a2 = getPlayer(s, 'A');
-  const b2 = getPlayer(s, 'B');
-  assert(a2.gold === 20 && b2.gold === 10, `gold ${a2.gold}/${b2.gold}`);
-  assert(b2.x === 0 && b2.y === 0 && b2.hp === b2.maxHp && b2.skip === 1);
-  s = act(s, 'A', { type: 'endTurn' });
-  assert(s.turn.idx === 0, 'B was skipped');
-});
+  test('building ability exhausts until next round', () => {
+    let s = startGame();
+    s = WHQ.game.useAbility(s, 'eHq');
+    throws(() => WHQ.game.useAbility(s, 'eHq'));
+    s = WHQ.game.nextRound(s);
+    eq(s.buildings[0].exhausted, false);
+    throws(() => WHQ.game.useAbility(s, 'eF'), 'unbuilt farm');
+  });
 
-test('starving crew deserts', () => {
-  let s = setup();
-  getPlayer(s, 'A').food = 0;
-  s = act(s, 'A', { type: 'endTurn' });
-  s = act(s, 'B', { type: 'endTurn' });
-  assert(getPlayer(s, 'A').crew.sailor === 2);
-});
+  test('next round: CP = 3 + generation of built buildings, resets activation', () => {
+    let s = startGame();
+    s = WHQ.game.build(s, 'eF');
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    s = WHQ.game.activateUnit(s, s.units[0].id);
+    s = WHQ.game.nextRound(s);
+    eq(s.round, 2);
+    eq(s.cp, 3 + 1 + 2);
+    eq(s.units[0].activated, false);
+  });
 
-test('reaching the gold goal ends the game', () => {
-  let s = setup();
-  const a = getPlayer(s, 'A');
-  a.gold = 99;
-  a.crew.boarder = 1;
-  s = act(s, 'A', { type: 'board', target: 'B' });
-  assert(s.phase === 'over' && s.winner === 'A');
-});
+  test('undo restores previous state', () => {
+    let s = startGame();
+    s = WHQ.game.build(s, 'eB');
+    s = WHQ.game.undo(s);
+    eq(s.cp, 4);
+    eq(s.buildings[1].built, false);
+    throws(() => WHQ.game.undo(s));
+  });
 
-test('only the current player may act', () => {
-  const s = setup();
-  assert(applyIntent(s, 'B', { type: 'endTurn' }).error);
-});
+  // --- share ---
+  test('share round trip', async () => {
+    const { faction } = fixture();
+    const data = await WHQ.share.encodeFaction(faction);
+    const url = WHQ.share.shareUrl(data);
+    eq(WHQ.share.extractData(url), data);
+    eq(await WHQ.share.decodeFaction(data), faction);
+    assert(WHQ.share.qrSvg(url), 'QR generated');
+  });
 
-test('fixed rng helper is deterministic', () => {
-  const r = fixedRng([0.1, 0.2]);
-  assert(r() === 0.1 && r() === 0.2 && r() === 0.1);
-});
+  test('share rejects garbage', async () => {
+    let failed = false;
+    try {
+      await WHQ.share.decodeFaction('zAAAA');
+    } catch {
+      failed = true;
+    }
+    assert(failed);
+  });
 
-const out = document.getElementById('results');
-const failed = results.filter(r => !r.ok).length;
-out.innerHTML = '';
-const head = document.createElement('h2');
-head.textContent = failed ? `${failed} of ${results.length} failed` : `All ${results.length} tests passed`;
-head.style.color = failed ? '#a8322a' : '#2e7d32';
-out.append(head);
-for (const r of results) {
-  const li = document.createElement('li');
-  li.textContent = `${r.ok ? '✔' : '✘'} ${r.name}${r.ok ? '' : ` — ${r.msg}`}`;
-  li.style.color = r.ok ? '#2e7d32' : '#a8322a';
-  out.append(li);
-}
-console.log(results);
+  async function run() {
+    const out = document.getElementById('results');
+    let passed = 0;
+    for (const t of tests) {
+      const li = document.createElement('li');
+      li.className = 'card compact';
+      try {
+        await t.fn();
+        passed++;
+        li.textContent = 'PASS  ' + t.name;
+      } catch (e) {
+        li.textContent = `FAIL  ${t.name} - ${e.message}`;
+        li.style.borderColor = 'var(--blood)';
+      }
+      out.appendChild(li);
+    }
+    const summary = document.getElementById('summary');
+    summary.textContent = `${passed} / ${tests.length} passed`;
+    document.title = (passed === tests.length ? 'PASS ' : 'FAIL ') + summary.textContent;
+  }
+
+  run();
+})(window.WHQ = window.WHQ || {});

@@ -1,14 +1,31 @@
-I want to create a game where my phone will be the pawn.
-It will be a pirate ship.
-other players will also add their phone to the game.
-each players phone is their own pirate ship.
-the game should be made with plain javascript css and html.
-the game will be deployed to github pages.
-a player should get a turn while their phone is on the table as the pawn.
-their should be a starting screen to setup the game.
-their should be a setup lobby where players can connect through a 4 letter/number room code.
-their should be a game loop where players get a turn.
-when a player has their turn they can upgrade, move, attack close players, hire new crew, come across different islands.
-the position of the phone on the table is the position on the map.
-phone can move a little bit every turn.
-you can give me some ideas i will correct where possible.
+The app will be an app will be an app that represents the base of a wargame.
+the app should be made with plain javascript css and html.
+the app will be deployed to github pages.
+The app when opened should have a start menu with a start button, a select faction button, create faction button and create an army button.
+The selected faction should be remembered
+The selected faction will be the faction you use in game.
+A faction contains multiple units and rules for those units.
+A unit should have a stat line: health, attack, defense, dodge, range(which could be melee or a number)
+Special abilities can be added to units which contain a textual description of the ability.
+Units will have a name.
+A faction will have buildings.
+Buildings have a special ability like units.
+Buildings have a statline: generation(amount of points), cost, units
+Create an army should bring you to a screen to create an army for a faction.
+When creating a army you should gain an X amount of points set at the start.
+buildings can be selected when creating a army.
+the same building can only be picked 3 times at most.
+buildings when selected add their units to your roster.
+buildings can have a selection of units where you pick which units to bring with that building.
+buildings could have no units.
+buildings can have a special ability which would exhaust the building only use once per round.
+when the game is started you should see your base and gain 3 command points.
+a command point can be used to activate a unit, build a building or activate a building or create a unit form a building.
+when a building is build is can be activated from then on.
+A building can at most create 3 units.
+units can die and should be selected that way to make the build unit action available again.
+i should be able to select my build units from an easy access list to see the stats.
+units will move on the table so the app only needs to show the statline.
+armies factions and units should be able to be shared with a qr code to other people with the app.
+loading should overwrite your current set.
+factions will have a name.

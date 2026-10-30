@@ -1,21 +1,33 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta name="theme-color" content="#2b1d0e">
-  <title>ShipFighter</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Pirata+One&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self' file:; style-src 'self' file: 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="theme-color" content="#1b1410">
+  <title>Wargame HQ</title>
   <link rel="stylesheet" href="css/style.css">
-  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-  <script type="module" src="js/main.js"></script>
 </head>
 <body>
-  <div id="app"></div>
-  <div id="overlay" hidden></div>
-  <div id="toasts"></div>
-  <div id="banner" hidden></div>
+  <main id="app"></main>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/vendor/qrcode.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/model.js"></script>
+  <script src="js/army.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/share.js"></script>
+  <script src="js/ui/common.js"></script>
+  <script src="js/ui/menu.js"></script>
+  <script src="js/ui/factions.js"></script>
+  <script src="js/ui/factionEditor.js"></script>
+  <script src="js/ui/armies.js"></script>
+  <script src="js/ui/armyBuilder.js"></script>
+  <script src="js/ui/play.js"></script>
+  <script src="js/ui/game.js"></script>
+  <script src="js/ui/share.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

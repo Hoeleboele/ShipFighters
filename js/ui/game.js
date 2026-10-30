@@ -1,34 +1,148 @@
-import { h, svg } from './dom.js';
-import { getPlayer, currentPlayer } from '../rules.js';
-import { renderBoard, renderHud } from './pawn.js';
-import { renderTurnBar } from './turn.js';
+(function (WHQ) {
+  'use strict';
 
-export function mountGame(root, session, app) {
-  const hud = h('div', { class: 'hud' });
-  const board = svg({ viewBox: '0 0 300 600', preserveAspectRatio: 'xMidYMid meet', class: 'board', role: 'img', 'aria-label': 'Your ship and the 8 spaces around it' });
-  const bar = h('div', { class: 'turnbar' });
-  const wrap = h('div', { class: 'game' }, hud, h('div', { class: 'board-wrap' }, board), bar);
-  root.append(wrap);
+  const { esc } = WHQ.util;
+  const { storage, ui, model, game: rules } = WHQ;
 
-  // Shared with overlays so they can refresh on every state update.
-  const ctx = { session, app, state: null, overlay: null };
-  let wasMyTurn = false;
+  let activeTab = 'base';
+  const openUnits = new Set();
 
-  return {
-    update(state) {
-      ctx.state = state;
-      const me = getPlayer(state, session.myId);
-      const myTurn = currentPlayer(state)?.id === me.id;
-      if (myTurn && !wasMyTurn) navigator.vibrate?.([200, 100, 200]);
-      wasMyTurn = myTurn;
-      wrap.classList.toggle('my-turn', myTurn);
-      renderHud(hud, state, me);
-      renderBoard(board, state, me);
-      renderTurnBar(bar, state, me, ctx);
-      ctx.overlay?.update(state);
-    },
-    unmount() {
-      ctx.overlay?.close();
-    },
+  WHQ.ui.screens.game = function (el) {
+    let state = storage.getGame();
+    if (!state) {
+      el.innerHTML = ui.header('Battle', '#/menu') +
+        ui.empty('No battle in progress.', '<button class="btn primary" data-go="#/play">Start</button>');
+      return;
+    }
+
+    const cpBtn = (label, action, attrs, disabled) =>
+      `<button class="btn small primary" data-a="${action}" ${attrs} ${disabled || state.cp < 1 ? 'disabled' : ''}>${label} <span class="cost">1 CP</span></button>`;
+
+    function buildingCard(b) {
+      const def = model.findBuilding(state.faction, b.buildingId);
+      const entry = rules.entryOf(state, b.entryId);
+      if (!def || !entry) return '';
+      const isHq = def.id === state.faction.hqBuildingId;
+      const status = !b.built ? ['Unbuilt', 'red'] : b.exhausted ? ['Exhausted', 'grey'] : ['Ready', 'green'];
+      return `<article class="card building ${b.built ? '' : 'unbuilt'} ${b.exhausted ? 'exhausted' : ''}">
+        <div class="card-head">
+          <h3>${esc(def.name)} ${isHq ? '<span class="badge gold">HQ</span>' : ''}</h3>
+          <span class="badge ${status[1]}">${status[0]}</span>
+        </div>
+        ${def.generation ? `<p class="muted">Generates +${def.generation} CP per round</p>` : ''}
+        ${ui.abilities(def.abilities)}
+        <div class="actions">
+          ${!b.built ? cpBtn('Build', 'build', `data-entry="${esc(b.entryId)}"`) : ''}
+          ${b.built && def.abilities.length ? cpBtn('Use ability', 'ability', `data-entry="${esc(b.entryId)}"`, b.exhausted) : ''}
+        </div>
+        ${entry.unitPicks.length ? `<ul class="slots">${entry.unitPicks.map((uid, slot) => {
+          const unit = model.findUnit(state.faction, uid);
+          const onTable = rules.slotOccupant(state, b.entryId, slot);
+          return `<li>
+            <span>${esc(unit ? unit.name : 'Unknown')}</span>
+            ${onTable ? '<span class="badge green">On the field</span>'
+              : b.built ? cpBtn('Create', 'create', `data-entry="${esc(b.entryId)}" data-slot="${slot}"`)
+              : '<span class="muted">Build first</span>'}
+          </li>`;
+        }).join('')}</ul>` : ''}
+      </article>`;
+    }
+
+    function unitCard(u) {
+      const def = model.findUnit(state.faction, u.unitId);
+      const origin = state.buildings.find((b) => b.entryId === u.entryId);
+      const bDef = origin && model.findBuilding(state.faction, origin.buildingId);
+      if (!def) return '';
+      return `<details class="card unit ${u.activated ? 'exhausted' : ''}" data-unit-card="${esc(u.id)}" ${openUnits.has(u.id) ? 'open' : ''}>
+        <summary class="card-head">
+          <h3>${esc(def.name)}</h3>
+          <span class="unit-meta">
+            ${u.activated ? '<span class="badge grey">Activated</span>' : ''}
+            <span class="muted">${esc(bDef ? bDef.name : '')}</span>
+          </span>
+        </summary>
+        ${ui.statline(def)}
+        ${ui.abilities(def.abilities)}
+        ${u.dead ? '' : `<div class="actions">
+          ${u.activated ? '' : cpBtn('Activate', 'activate', `data-unit="${esc(u.id)}"`)}
+          <button class="btn small danger" data-a="kill" data-unit="${esc(u.id)}">Slain</button>
+        </div>`}
+      </details>`;
+    }
+
+    function render() {
+      const alive = state.units.filter((u) => !u.dead);
+      const dead = state.units.filter((u) => u.dead);
+      el.innerHTML = `
+        <header class="bar game-bar">
+          <a class="back" href="#/menu" aria-label="Menu">&#8592;</a>
+          <div class="round">Round ${state.round}</div>
+          <div class="cp" aria-label="Command points"><span>${state.cp}</span> CP</div>
+        </header>
+        <p class="muted center">${esc(state.army.name)} &middot; ${esc(state.faction.name)}</p>
+        <div class="controls">
+          <button class="btn small" data-a="undo" ${state.history.length ? '' : 'disabled'}>Undo</button>
+          <button class="btn small primary" data-a="next">Next round</button>
+          <button class="btn small danger" data-a="end">End battle</button>
+        </div>
+        <div class="tabs" role="tablist">
+          <button role="tab" class="${activeTab === 'base' ? 'active' : ''}" data-tab="base">Base</button>
+          <button role="tab" class="${activeTab === 'units' ? 'active' : ''}" data-tab="units">Units (${alive.length})</button>
+        </div>
+        <section class="list">
+          ${activeTab === 'base'
+            ? state.buildings.map(buildingCard).join('')
+            : (alive.length ? alive.map(unitCard).join('') : ui.empty('No units on the field. Create them from your buildings.'))
+              + (dead.length ? `<details class="fallen"><summary>Fallen (${dead.length})</summary>${dead.map(unitCard).join('')}</details>` : '')}
+        </section>`;
+    }
+
+    function run(fn) {
+      try {
+        state = fn(state);
+        storage.saveGame(state);
+        render();
+      } catch (e) {
+        ui.toast(e.message);
+      }
+    }
+
+    el.addEventListener('toggle', (ev) => {
+      const id = ev.target.dataset && ev.target.dataset.unitCard;
+      if (!id) return;
+      if (ev.target.open) openUnits.add(id);
+      else openUnits.delete(id);
+    }, true);
+
+    el.addEventListener('click', (ev) => {
+      const tab = ev.target.closest('[data-tab]');
+      if (tab) {
+        activeTab = tab.dataset.tab;
+        render();
+        return;
+      }
+      const btn = ev.target.closest('[data-a]');
+      if (!btn) return;
+      const d = btn.dataset;
+      switch (d.a) {
+        case 'build': run((s) => rules.build(s, d.entry)); break;
+        case 'ability': run((s) => rules.useAbility(s, d.entry)); break;
+        case 'create': run((s) => rules.createUnit(s, d.entry, +d.slot)); break;
+        case 'activate': run((s) => rules.activateUnit(s, d.unit)); break;
+        case 'kill': run((s) => rules.killUnit(s, d.unit)); break;
+        case 'undo': run(rules.undo); break;
+        case 'next':
+          if (state.cp > 0 && !confirm(`You still have ${state.cp} CP. Start the next round?`)) return;
+          run(rules.nextRound);
+          break;
+        case 'end':
+          if (!confirm('End this battle?')) return;
+          storage.clearGame();
+          ui.go('#/menu');
+          break;
+      }
+    });
+
+    render();
   };
-}
+})(window.WHQ = window.WHQ || {});
