@@ -66,6 +66,7 @@
     eq(f.units[1].health, 7);
     eq(f.units[1].weaponIds, []);
     eq(f.units[1].supply, 1);
+    eq(f.units[1].speed, 6);
     eq('range' in f.units[1], false);
     assert(f.units[1].id !== f.units[2].id, 'duplicate ids fixed');
     eq(f.buildings[0].units, 3);

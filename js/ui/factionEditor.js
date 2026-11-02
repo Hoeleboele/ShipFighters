@@ -35,6 +35,7 @@
 
     const draft = isNew ? model.newFaction() : model.normalizeFaction(clone(existing));
     const open = new Set();
+    let activeTab = 'abilities';
     const TARGET_OF = { units: 'unit', weapons: 'weapon', buildings: 'building' };
     const TARGET_LABEL = { unit: ['Unit', 'units'], weapon: ['Weapon', 'weapons'], building: ['Building', 'buildings'] };
 
@@ -127,6 +128,7 @@
           ${numField('Health', `units.${i}.health`, u.health, 0, 9999)}
           ${numField('Defense', `units.${i}.defense`, u.defense, 0, 9999)}
           ${numField('Dodge', `units.${i}.dodge`, u.dodge, 0, 9999)}
+          ${numField('Speed', `units.${i}.speed`, u.speed, 0, 9999)}
           ${numField('Supply', `units.${i}.supply`, u.supply, 0, 99)}
         </div>
         <fieldset class="eligible">
@@ -162,25 +164,41 @@
       </details>`;
     }
 
+    const TABS = [
+      ['abilities', 'Abilities', () => draft.abilities.length],
+      ['weapons', 'Weapons', () => draft.weapons.length],
+      ['units', 'Units', () => draft.units.length],
+      ['buildings', 'Buildings', () => draft.buildings.length],
+    ];
+
+    function tabContent() {
+      switch (activeTab) {
+        case 'weapons':
+          return `<section class="list">${draft.weapons.map(weaponCard).join('')}</section>
+            <button class="btn" data-a="add-weapon">+ Add weapon</button>`;
+        case 'units':
+          return `<section class="list">${draft.units.map(unitCard).join('')}</section>
+            <button class="btn" data-a="add-unit">+ Add unit</button>`;
+        case 'buildings':
+          return `<section class="list">${draft.buildings.map(buildingCard).join('')}</section>
+            <button class="btn" data-a="add-building">+ Add building</button>`;
+        default:
+          return `<p class="muted">Write an ability once and tick it on any unit, weapon or building it targets.</p>
+            <section class="list">${draft.abilities.map(sharedAbilityCard).join('')}</section>
+            <button class="btn" data-a="add-shared">+ Add shared ability</button>`;
+      }
+    }
+
     function render() {
       el.innerHTML = `
         ${ui.header(isNew ? 'Create faction' : 'Edit faction', '#/factions')}
         <section class="form">
           ${field('Faction name', 'name', draft.name)}
         </section>
-        <h2 class="section">Shared abilities</h2>
-        <p class="muted">Write an ability once and tick it on any unit, weapon or building it targets.</p>
-        <section class="list">${draft.abilities.map(sharedAbilityCard).join('')}</section>
-        <button class="btn" data-a="add-shared">+ Add shared ability</button>
-        <h2 class="section">Weapons</h2>
-        <section class="list">${draft.weapons.map(weaponCard).join('')}</section>
-        <button class="btn" data-a="add-weapon">+ Add weapon</button>
-        <h2 class="section">Units</h2>
-        <section class="list">${draft.units.map(unitCard).join('')}</section>
-        <button class="btn" data-a="add-unit">+ Add unit</button>
-        <h2 class="section">Buildings</h2>
-        <section class="list">${draft.buildings.map(buildingCard).join('')}</section>
-        <button class="btn" data-a="add-building">+ Add building</button>
+        <div class="tabs" role="tablist">
+          ${TABS.map(([key, label, count]) => `<button role="tab" class="${activeTab === key ? 'active' : ''}" aria-selected="${activeTab === key}" data-tab="${key}">${label} (${count()})</button>`).join('')}
+        </div>
+        ${tabContent()}
         <div class="savebar">
           <button class="btn" data-go="#/factions">Cancel</button>
           <button class="btn primary" data-a="save">Save faction</button>
@@ -247,6 +265,12 @@
     });
 
     el.addEventListener('click', (ev) => {
+      const tab = ev.target.closest('[data-tab]');
+      if (tab) {
+        activeTab = tab.dataset.tab;
+        render();
+        return;
+      }
       const btn = ev.target.closest('[data-a]');
       if (!btn) return;
       const i = +btn.dataset.i;

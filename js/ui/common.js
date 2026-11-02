@@ -32,6 +32,7 @@
         ['HP', unit.health],
         ['DEF', unit.defense],
         ['DOD', unit.dodge],
+        ['SPD', Number.isFinite(unit.speed) ? unit.speed : WHQ.model.DEFAULT_UNIT_SPEED],
         ['SUP', Number.isFinite(unit.supply) ? unit.supply : WHQ.model.DEFAULT_UNIT_SUPPLY],
       ];
       return `<dl class="stats">${stats

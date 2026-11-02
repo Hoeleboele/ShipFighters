@@ -272,7 +272,7 @@ legend { color: var(--muted); font-size: 0.85rem; font-variant: small-caps; padd
 .savebar .btn { flex: 1; max-width: 260px; }
 
 /* Stats */
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 10px 0 4px; }
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; margin: 10px 0 4px; }
 .stats div {
   background: #1a130d;
   border: 1px solid var(--border);

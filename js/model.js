@@ -7,6 +7,7 @@
   const MAX_WEAPONS_PER_UNIT = 10;
   const DEFAULT_ARMY_SUPPLY = 7;
   const DEFAULT_UNIT_SUPPLY = 1;
+  const DEFAULT_UNIT_SPEED = 6;
   // Plain number or dice with optional modifier: 3, D6, 2D6, D3+1.
   const ATTACKS_RE = /^(\d{1,3}|\d{0,2}D\d{1,3}(\+\d{1,3})?)$/;
   const ABILITY_TARGETS = ['unit', 'weapon', 'building'];
@@ -87,6 +88,7 @@
       health: int(u.health, 0, 9999, 1),
       defense: int(u.defense, 0, 9999, 0),
       dodge: int(u.dodge, 0, 9999, 0),
+      speed: int(u.speed, 0, 9999, DEFAULT_UNIT_SPEED),
       supply: int(u.supply, 0, 99, DEFAULT_UNIT_SUPPLY),
       weaponIds: arr(u.weaponIds, 200).filter((id) => weaponIds.has(id)).slice(0, MAX_WEAPONS_PER_UNIT),
       sharedAbilityIds: normSharedIds(u.sharedAbilityIds, sharedIds),
@@ -168,6 +170,7 @@
     MAX_WEAPONS_PER_UNIT,
     DEFAULT_ARMY_SUPPLY,
     DEFAULT_UNIT_SUPPLY,
+    DEFAULT_UNIT_SPEED,
     ABILITY_TARGETS,
 
     newSharedAbility(target) {
@@ -179,7 +182,7 @@
     },
 
     newUnit() {
-      return { id: uid(), name: 'New unit', health: 1, defense: 0, dodge: 0, supply: DEFAULT_UNIT_SUPPLY, weaponIds: [], sharedAbilityIds: [], abilities: [] };
+      return { id: uid(), name: 'New unit', health: 1, defense: 0, dodge: 0, speed: DEFAULT_UNIT_SPEED, supply: DEFAULT_UNIT_SUPPLY, weaponIds: [], sharedAbilityIds: [], abilities: [] };
     },
 
     newBuilding() {
