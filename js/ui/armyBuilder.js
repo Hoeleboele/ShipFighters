@@ -43,7 +43,7 @@
           <span class="muted">${count}/${isHq ? 1 : rules.MAX_SAME_BUILDING}</span>
         </div>
         <p class="muted">Cost ${b.cost} &middot; Generation ${b.generation}${b.supplyBonus ? ` &middot; Supply +${b.supplyBonus}` : ''} &middot; Units ${b.units}</p>
-        ${ui.abilities(b.abilities)}
+        ${ui.abilities(model.allAbilities(faction, b))}
         <button class="btn small ${reason ? '' : 'primary'}" data-a="add" data-id="${esc(b.id)}" ${reason ? 'disabled' : ''}>${reason ? esc(reason) : `Add (${b.cost} pts)`}</button>
       </article>`;
     }
@@ -90,7 +90,7 @@
             <div class="card-head"><h3>${esc(r.unit.name)}</h3><span class="muted">${esc(r.building.name)}</span></div>
             ${ui.statline(r.unit)}
             ${ui.weapons(faction, r.unit)}
-            ${ui.abilities(r.unit.abilities)}
+            ${ui.abilities(model.allAbilities(faction, r.unit))}
           </article>`).join('') : ui.empty('No units yet.')}</section>
         ${errors.length ? `<ul class="errors">${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}`;
     }

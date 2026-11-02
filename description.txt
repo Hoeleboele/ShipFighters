@@ -11,6 +11,7 @@ A faction has weapons, created in the faction editor. Units can only equip weapo
 A weapon has a name, hit value (X+ rolled on a d6, 2-6), attacks (a number or dice like D6, 2D6, D3+1), range (melee or a number), armour piercing (AP, 0 or more) and abilities.
 Weapons are shown on a unit sorted by range, longest first and melee last.
 Special abilities can be added to units which contain a textual description of the ability.
+A faction can have shared abilities. Each shared ability targets units, weapons or buildings and can be ticked on any item of that kind, next to its own custom abilities.
 Units will have a name.
 A faction will have buildings.
 Buildings have a special ability like units.

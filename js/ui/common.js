@@ -48,7 +48,9 @@
       if (!list.length) return '<p class="muted weapons-none">No weapons</p>';
       return `<table class="weapons">
         <thead><tr><th>Weapon</th><th>Hit</th><th>A</th><th>Rng</th><th>AP</th></tr></thead>
-        <tbody>${list.map(({ weapon: w, count }) => `
+        <tbody>${list.map(({ weapon: w, count }) => {
+          const abilities = WHQ.model.allAbilities(faction, w);
+          return `
           <tr>
             <td>${count > 1 ? `${count}&times; ` : ''}${esc(w.name || 'Weapon')}</td>
             <td>${w.hit}+</td>
@@ -56,7 +58,8 @@
             <td>${esc(WHQ.model.rangeLabel(w.range))}</td>
             <td>${w.ap}</td>
           </tr>
-          ${w.abilities.length ? `<tr class="weapon-abilities"><td colspan="5">${WHQ.ui.abilities(w.abilities)}</td></tr>` : ''}`).join('')}
+          ${abilities.length ? `<tr class="weapon-abilities"><td colspan="5">${WHQ.ui.abilities(abilities)}</td></tr>` : ''}`;
+        }).join('')}
         </tbody>
       </table>`;
     },

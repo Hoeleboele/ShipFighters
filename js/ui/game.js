@@ -25,6 +25,7 @@
       if (!def || !entry) return '';
       const isHq = def.id === state.faction.hqBuildingId;
       const status = !b.built ? ['Unbuilt', 'red'] : b.exhausted ? ['Exhausted', 'grey'] : ['Ready', 'green'];
+      const abilities = model.allAbilities(state.faction, def);
       return `<article class="card building ${b.built ? '' : 'unbuilt'} ${b.exhausted ? 'exhausted' : ''}">
         <div class="card-head">
           <h3>${esc(def.name)} ${isHq ? '<span class="badge gold">HQ</span>' : ''}</h3>
@@ -32,10 +33,10 @@
         </div>
         ${def.generation ? `<p class="muted">Generates +${def.generation} CP per round</p>` : ''}
         ${def.supplyBonus ? `<p class="muted">${b.built ? 'Gives' : 'Gives when built'} +${def.supplyBonus} supply</p>` : ''}
-        ${ui.abilities(def.abilities)}
+        ${ui.abilities(abilities)}
         <div class="actions">
           ${!b.built ? cpBtn('Build', 'build', `data-entry="${esc(b.entryId)}"`) : ''}
-          ${b.built && def.abilities.length ? cpBtn('Use ability', 'ability', `data-entry="${esc(b.entryId)}"`, b.exhausted) : ''}
+          ${b.built && abilities.length ? cpBtn('Use ability', 'ability', `data-entry="${esc(b.entryId)}"`, b.exhausted) : ''}
         </div>
         ${entry.unitPicks.length ? `<ul class="slots">${entry.unitPicks.map((uid, slot) => {
           const unit = model.findUnit(state.faction, uid);
@@ -77,7 +78,7 @@
         </div>
         ${ui.statline(def)}
         ${ui.weapons(state.faction, def)}
-        ${ui.abilities(def.abilities)}
+        ${ui.abilities(model.allAbilities(state.faction, def))}
         <div class="actions">
           ${ready.length ? cpBtn('Activate one', 'activate', `data-unit="${esc(ready[0].id)}"`) : '<span class="badge grey">All activated</span>'}
         </div>

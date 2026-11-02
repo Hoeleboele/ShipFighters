@@ -9,6 +9,8 @@
   const DEFAULT_UNIT_SUPPLY = 1;
   // Plain number or dice with optional modifier: 3, D6, 2D6, D3+1.
   const ATTACKS_RE = /^(\d{1,3}|\d{0,2}D\d{1,3}(\+\d{1,3})?)$/;
+  const ABILITY_TARGETS = ['unit', 'weapon', 'building'];
+  const NO_IDS = new Set();
 
   function obj(v) {
     return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
@@ -24,6 +26,21 @@
 
   function normAbilities(list) {
     return arr(list, 20).map(obj).map((a) => ({ name: str(a.name, 80), text: str(a.text, 1000) }));
+  }
+
+  function normSharedAbility(raw) {
+    const a = obj(raw);
+    return {
+      id: normId(a.id),
+      name: str(a.name, 80),
+      text: str(a.text, 1000),
+      target: ABILITY_TARGETS.includes(a.target) ? a.target : 'unit',
+    };
+  }
+
+  // Keeps only ids of shared abilities that exist and target this kind of item.
+  function normSharedIds(list, allowed) {
+    return [...new Set(arr(list, 200).filter((id) => allowed.has(id)))];
   }
 
   function normRange(r) {
@@ -47,7 +64,7 @@
     return ATTACKS_RE.test(s) ? s : '1';
   }
 
-  function normalizeWeapon(raw) {
+  function normalizeWeapon(raw, sharedIds = NO_IDS) {
     const w = obj(raw);
     return {
       id: normId(w.id),
@@ -56,12 +73,13 @@
       attacks: normAttacks(w.attacks),
       range: normRange(w.range),
       ap: int(w.ap, 0, 99, 0),
+      sharedAbilityIds: normSharedIds(w.sharedAbilityIds, sharedIds),
       abilities: normAbilities(w.abilities),
     };
   }
 
   // Duplicate weapon ids are kept: a unit may carry the same weapon more than once.
-  function normalizeUnit(raw, weaponIds) {
+  function normalizeUnit(raw, weaponIds, sharedIds) {
     const u = obj(raw);
     return {
       id: normId(u.id),
@@ -71,11 +89,12 @@
       dodge: int(u.dodge, 0, 9999, 0),
       supply: int(u.supply, 0, 99, DEFAULT_UNIT_SUPPLY),
       weaponIds: arr(u.weaponIds, 200).filter((id) => weaponIds.has(id)).slice(0, MAX_WEAPONS_PER_UNIT),
+      sharedAbilityIds: normSharedIds(u.sharedAbilityIds, sharedIds),
       abilities: normAbilities(u.abilities),
     };
   }
 
-  function normalizeBuilding(raw, unitIds) {
+  function normalizeBuilding(raw, unitIds, sharedIds) {
     const b = obj(raw);
     return {
       id: normId(b.id),
@@ -85,19 +104,36 @@
       supplyBonus: int(b.supplyBonus, 0, 99, 0),
       units: int(b.units, 0, MAX_UNITS_PER_BUILDING, 0),
       eligibleUnitIds: [...new Set(arr(b.eligibleUnitIds, 200).filter((id) => unitIds.has(id)))],
+      sharedAbilityIds: normSharedIds(b.sharedAbilityIds, sharedIds),
       abilities: normAbilities(b.abilities),
     };
   }
 
   function normalizeFaction(raw) {
     const f = obj(raw);
-    const weapons = uniqueIds(arr(f.weapons, 200).map(normalizeWeapon));
+    const abilities = uniqueIds(arr(f.abilities, 200).map(normSharedAbility));
+    const idsFor = (target) => new Set(abilities.filter((a) => a.target === target).map((a) => a.id));
+    const weapons = uniqueIds(arr(f.weapons, 200).map((w) => normalizeWeapon(w, idsFor('weapon'))));
     const weaponIds = new Set(weapons.map((w) => w.id));
-    const units = uniqueIds(arr(f.units, 200).map((u) => normalizeUnit(u, weaponIds)));
+    const units = uniqueIds(arr(f.units, 200).map((u) => normalizeUnit(u, weaponIds, idsFor('unit'))));
     const unitIds = new Set(units.map((u) => u.id));
-    const buildings = uniqueIds(arr(f.buildings, 100).map((b) => normalizeBuilding(b, unitIds)));
+    const buildings = uniqueIds(arr(f.buildings, 100).map((b) => normalizeBuilding(b, unitIds, idsFor('building'))));
     const hqBuildingId = buildings.some((b) => b.id === f.hqBuildingId) ? f.hqBuildingId : null;
-    return { id: normId(f.id), name: str(f.name, 80), weapons, units, buildings, hqBuildingId };
+    return { id: normId(f.id), name: str(f.name, 80), abilities, weapons, units, buildings, hqBuildingId };
+  }
+
+  // Shared abilities first, then the item's own custom abilities.
+  function allAbilities(faction, item) {
+    const shared = (item.sharedAbilityIds || [])
+      .map((id) => (faction.abilities || []).find((a) => a.id === id))
+      .filter(Boolean)
+      .map((a) => ({ name: a.name, text: a.text }));
+    return shared.concat(item.abilities || []);
+  }
+
+  function sharedAbilityUsage(faction, id) {
+    const uses = (list) => (list || []).filter((x) => (x.sharedAbilityIds || []).includes(id)).length;
+    return uses(faction.units) + uses(faction.weapons) + uses(faction.buildings);
   }
 
   // Sorted longest range first, melee last; duplicates are merged into a count.
@@ -132,21 +168,26 @@
     MAX_WEAPONS_PER_UNIT,
     DEFAULT_ARMY_SUPPLY,
     DEFAULT_UNIT_SUPPLY,
+    ABILITY_TARGETS,
+
+    newSharedAbility(target) {
+      return { id: uid(), name: 'New ability', text: '', target: ABILITY_TARGETS.includes(target) ? target : 'unit' };
+    },
 
     newWeapon() {
-      return { id: uid(), name: 'New weapon', hit: 4, attacks: '1', range: 'melee', ap: 0, abilities: [] };
+      return { id: uid(), name: 'New weapon', hit: 4, attacks: '1', range: 'melee', ap: 0, sharedAbilityIds: [], abilities: [] };
     },
 
     newUnit() {
-      return { id: uid(), name: 'New unit', health: 1, defense: 0, dodge: 0, supply: DEFAULT_UNIT_SUPPLY, weaponIds: [], abilities: [] };
+      return { id: uid(), name: 'New unit', health: 1, defense: 0, dodge: 0, supply: DEFAULT_UNIT_SUPPLY, weaponIds: [], sharedAbilityIds: [], abilities: [] };
     },
 
     newBuilding() {
-      return { id: uid(), name: 'New building', cost: 10, generation: 0, supplyBonus: 0, units: 0, eligibleUnitIds: [], abilities: [] };
+      return { id: uid(), name: 'New building', cost: 10, generation: 0, supplyBonus: 0, units: 0, eligibleUnitIds: [], sharedAbilityIds: [], abilities: [] };
     },
 
     newFaction() {
-      return { id: uid(), name: '', weapons: [], units: [], buildings: [], hqBuildingId: null };
+      return { id: uid(), name: '', abilities: [], weapons: [], units: [], buildings: [], hqBuildingId: null };
     },
 
     newArmy(factionId) {
@@ -161,6 +202,8 @@
     normalizeWeapon,
     pruneArmy,
     unitWeapons,
+    allAbilities,
+    sharedAbilityUsage,
 
     findWeapon(faction, id) {
       return (faction.weapons || []).find((w) => w.id === id) || null;

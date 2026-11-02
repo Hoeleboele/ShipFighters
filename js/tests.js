@@ -27,18 +27,23 @@
     const faction = WHQ.model.normalizeFaction({
       id: 'f1',
       name: 'Iron Court',
+      abilities: [
+        { id: 's1', name: 'Brave', text: 'Never flees', target: 'unit' },
+        { id: 's2', name: 'Rapid fire', text: 'Double attacks at half range', target: 'weapon' },
+        { id: 's3', name: 'Fortified', text: '+1 defense nearby', target: 'building' },
+      ],
       weapons: [
         { id: 'w1', name: 'Sword', hit: 3, attacks: 2, range: 'melee', ap: 1 },
-        { id: 'w2', name: 'Bow', hit: 4, attacks: 'D6', range: 18, ap: 0 },
+        { id: 'w2', name: 'Bow', hit: 4, attacks: 'D6', range: 18, ap: 0, sharedAbilityIds: ['s2'] },
       ],
       units: [
-        { id: 'u1', name: 'Knight', health: 3, defense: 3, dodge: 1, supply: 3, weaponIds: ['w1', 'w1', 'w2'] },
+        { id: 'u1', name: 'Knight', health: 3, defense: 3, dodge: 1, supply: 3, weaponIds: ['w1', 'w1', 'w2'], sharedAbilityIds: ['s1'], abilities: [{ name: 'Charge', text: 'y' }] },
         { id: 'u2', name: 'Archer', health: 1, defense: 1, dodge: 2, supply: 1, weaponIds: ['w2'] },
       ],
       buildings: [
         { id: 'hq', name: 'Keep', cost: 30, generation: 1, units: 1, eligibleUnitIds: ['u1'], abilities: [{ name: 'Rally', text: 'x' }] },
         { id: 'b1', name: 'Barracks', cost: 20, generation: 0, units: 3, eligibleUnitIds: ['u1', 'u2'] },
-        { id: 'b2', name: 'Farm', cost: 10, generation: 2, supplyBonus: 2, units: 0 },
+        { id: 'b2', name: 'Farm', cost: 10, generation: 2, supplyBonus: 2, units: 0, sharedAbilityIds: ['s3'] },
       ],
       hqBuildingId: 'hq',
     });
@@ -98,6 +103,28 @@
     faction.weapons.push({ id: 'w3', name: 'Pistol', hit: 4, attacks: '1', range: 6, ap: 0, abilities: [] });
     const knight = { weaponIds: ['w1', 'w3', 'w1', 'w2'] };
     eq(WHQ.model.unitWeapons(faction, knight).map((x) => [x.weapon.name, x.count]), [['Bow', 1], ['Pistol', 1], ['Sword', 2]]);
+  });
+
+  test('shared abilities: bad target defaults to unit, wrong-target/unknown/duplicate ids dropped', () => {
+    const f = WHQ.model.normalizeFaction({
+      abilities: [{ id: 'a1', name: 'X', target: 'bogus' }, { id: 'a2', name: 'Y', target: 'weapon' }],
+      weapons: [{ id: 'w', sharedAbilityIds: ['a1', 'a2', 'a2'] }],
+      units: [{ id: 'u', sharedAbilityIds: ['a1', 'a1', 'a2', 'nope'] }, { id: 'old' }],
+      buildings: [{ id: 'b', sharedAbilityIds: ['a1'] }],
+    });
+    eq(f.abilities[0].target, 'unit');
+    eq(f.weapons[0].sharedAbilityIds, ['a2']);
+    eq(f.units[0].sharedAbilityIds, ['a1']);
+    eq(f.units[1].sharedAbilityIds, []);
+    eq(f.buildings[0].sharedAbilityIds, []);
+  });
+
+  test('allAbilities lists shared first, then custom; usage is counted', () => {
+    const { faction } = fixture();
+    eq(WHQ.model.allAbilities(faction, faction.units[0]).map((a) => a.name), ['Brave', 'Charge']);
+    eq(WHQ.model.allAbilities(faction, faction.weapons[1]).map((a) => a.name), ['Rapid fire']);
+    eq(WHQ.model.sharedAbilityUsage(faction, 's1'), 1);
+    eq(WHQ.model.sharedAbilityUsage(faction, 's3'), 1);
   });
 
   test('supply defaults', () => {
@@ -229,6 +256,13 @@
     eq(s.cp, 4);
     eq(s.buildings[1].built, false);
     throws(() => WHQ.game.undo(s));
+  });
+
+  test('building with only a shared ability can use it', () => {
+    let s = startGame();
+    s = WHQ.game.build(s, 'eF');
+    s = WHQ.game.useAbility(s, 'eF');
+    eq(s.buildings[2].exhausted, true);
   });
 
   test('supply: base plus bonus of built buildings only', () => {

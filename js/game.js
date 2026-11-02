@@ -4,7 +4,7 @@
   const BASE_CP = 3;
   const MAX_HISTORY = 30;
   const { clone, uid } = WHQ.util;
-  const { findBuilding, findUnit, normalizeFaction, pruneArmy, DEFAULT_ARMY_SUPPLY, DEFAULT_UNIT_SUPPLY } = WHQ.model;
+  const { findBuilding, findUnit, allAbilities, normalizeFaction, pruneArmy, DEFAULT_ARMY_SUPPLY, DEFAULT_UNIT_SUPPLY } = WHQ.model;
 
   function entryOf(state, entryId) {
     return state.army.entries.find((e) => e.id === entryId) || null;
@@ -115,7 +115,7 @@
       const b = buildingOf(s, entryId);
       const def = findBuilding(s.faction, b.buildingId);
       if (!b.built) throw new Error('Building is not built');
-      if (!def || def.abilities.length === 0) throw new Error('Building has no ability');
+      if (!def || allAbilities(s.faction, def).length === 0) throw new Error('Building has no ability');
       if (b.exhausted) throw new Error('Building is exhausted this round');
       spend(s);
       b.exhausted = true;

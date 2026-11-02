@@ -35,6 +35,46 @@
 
     const draft = isNew ? model.newFaction() : model.normalizeFaction(clone(existing));
     const open = new Set();
+    const TARGET_OF = { units: 'unit', weapons: 'weapon', buildings: 'building' };
+    const TARGET_LABEL = { unit: ['Unit', 'units'], weapon: ['Weapon', 'weapons'], building: ['Building', 'buildings'] };
+
+    function sharedPicker(kind, i, item) {
+      const options = draft.abilities.filter((a) => a.target === TARGET_OF[kind]);
+      if (!options.length) return '';
+      return `<fieldset class="eligible">
+        <legend>Shared abilities</legend>
+        ${options.map((a) => `
+          <label class="check"><input type="checkbox" data-shared="${kind}" data-i="${i}" value="${esc(a.id)}" ${item.sharedAbilityIds.includes(a.id) ? 'checked' : ''}><span>${esc(a.name || 'Unnamed ability')}</span></label>`).join('')}
+      </fieldset>`;
+    }
+
+    // e.g. "1 unit", "3 weapons"
+    function usageLabel(a) {
+      const used = model.sharedAbilityUsage(draft, a.id);
+      const plural = TARGET_LABEL[a.target][1];
+      return `${used} ${used === 1 ? plural.slice(0, -1) : plural}`;
+    }
+
+    function sharedAbilityCard(a, i) {
+      return `<details class="card" data-id="${esc(a.id)}" ${open.has(a.id) ? 'open' : ''}>
+        <summary><span data-title="abilities.${i}">${esc(a.name || 'Unnamed ability')}</span> <span class="muted">(${TARGET_LABEL[a.target][0]})</span></summary>
+        ${field('Name', `abilities.${i}.name`, a.name)}
+        <label class="field"><span>Text</span><textarea data-bind="abilities.${i}.text" maxlength="1000" rows="2" placeholder="What does it do?">${esc(a.text)}</textarea></label>
+        <label class="field"><span>Target</span>
+          <select data-target-of="${i}">
+            ${model.ABILITY_TARGETS.map((t) => `<option value="${t}" ${a.target === t ? 'selected' : ''}>${TARGET_LABEL[t][0]}</option>`).join('')}
+          </select>
+        </label>
+        <p class="muted">Used by ${usageLabel(a)}</p>
+        <button class="btn small danger" data-a="del-shared" data-i="${i}">Delete ability</button>
+      </details>`;
+    }
+
+    function removeSharedEverywhere(id) {
+      for (const list of [draft.units, draft.weapons, draft.buildings]) {
+        list.forEach((x) => (x.sharedAbilityIds = x.sharedAbilityIds.filter((s) => s !== id)));
+      }
+    }
 
     function rangeFields(kind, i, range) {
       const ranged = range !== 'melee';
@@ -57,6 +97,7 @@
           ${rangeFields('weapons', i, w.range)}
           ${numField('AP', `weapons.${i}.ap`, w.ap, 0, 99)}
         </div>
+        ${sharedPicker('weapons', i, w)}
         ${abilitiesEditor('weapons', i, w.abilities)}
         <button class="btn small danger" data-a="del-weapon" data-i="${i}">Delete weapon</button>
       </details>`;
@@ -92,6 +133,7 @@
           <legend>Weapons</legend>
           ${weaponPicker(u, i)}
         </fieldset>
+        ${sharedPicker('units', i, u)}
         ${abilitiesEditor('units', i, u.abilities)}
         <button class="btn small danger" data-a="del-unit" data-i="${i}">Delete unit</button>
       </details>`;
@@ -114,6 +156,7 @@
           ${draft.units.length ? draft.units.map((u) => `
             <label class="check"><input type="checkbox" data-eligible="${i}" value="${esc(u.id)}" ${b.eligibleUnitIds.includes(u.id) ? 'checked' : ''}><span>${esc(u.name || 'Unnamed unit')}</span></label>`).join('') : '<p class="muted">Add units first.</p>'}
         </fieldset>
+        ${sharedPicker('buildings', i, b)}
         ${abilitiesEditor('buildings', i, b.abilities)}
         <button class="btn small danger" data-a="del-building" data-i="${i}">Delete building</button>
       </details>`;
@@ -125,6 +168,10 @@
         <section class="form">
           ${field('Faction name', 'name', draft.name)}
         </section>
+        <h2 class="section">Shared abilities</h2>
+        <p class="muted">Write an ability once and tick it on any unit, weapon or building it targets.</p>
+        <section class="list">${draft.abilities.map(sharedAbilityCard).join('')}</section>
+        <button class="btn" data-a="add-shared">+ Add shared ability</button>
         <h2 class="section">Weapons</h2>
         <section class="list">${draft.weapons.map(weaponCard).join('')}</section>
         <button class="btn" data-a="add-weapon">+ Add weapon</button>
@@ -167,6 +214,22 @@
       if (t.dataset.range !== undefined) {
         draft[t.dataset.kind][+t.dataset.range].range = t.value === 'melee' ? 'melee' : 1;
         render();
+      } else if (t.dataset.targetOf !== undefined) {
+        const a = draft.abilities[+t.dataset.targetOf];
+        const used = model.sharedAbilityUsage(draft, a.id);
+        if (used && !confirm(`"${a.name}" is used by ${usageLabel(a)}. Changing the target removes it from them. Continue?`)) {
+          t.value = a.target;
+          return;
+        }
+        removeSharedEverywhere(a.id);
+        a.target = t.value;
+        render();
+      } else if (t.dataset.shared !== undefined) {
+        const item = draft[t.dataset.shared][+t.dataset.i];
+        item.sharedAbilityIds = t.checked
+          ? [...item.sharedAbilityIds, t.value]
+          : item.sharedAbilityIds.filter((x) => x !== t.value);
+        render();
       } else if (t.dataset.equip !== undefined) {
         if (!t.value) return;
         const u = draft.units[+t.dataset.equip];
@@ -188,6 +251,20 @@
       if (!btn) return;
       const i = +btn.dataset.i;
       switch (btn.dataset.a) {
+        case 'add-shared': {
+          const a = model.newSharedAbility('unit');
+          draft.abilities.push(a);
+          open.add(a.id);
+          break;
+        }
+        case 'del-shared': {
+          const a = draft.abilities[i];
+          const used = model.sharedAbilityUsage(draft, a.id);
+          if (!confirm(`Delete shared ability "${a.name}"?${used ? ` It is removed from ${usageLabel(a)}.` : ''}`)) return;
+          draft.abilities.splice(i, 1);
+          removeSharedEverywhere(a.id);
+          break;
+        }
         case 'add-weapon': {
           const w = model.newWeapon();
           draft.weapons.push(w);
