@@ -120,8 +120,11 @@
     const units = uniqueIds(arr(f.units, 200).map((u) => normalizeUnit(u, weaponIds, idsFor('unit'))));
     const unitIds = new Set(units.map((u) => u.id));
     const buildings = uniqueIds(arr(f.buildings, 100).map((b) => normalizeBuilding(b, unitIds, idsFor('building'))));
-    const hqBuildingId = buildings.some((b) => b.id === f.hqBuildingId) ? f.hqBuildingId : null;
-    return { id: normId(f.id), name: str(f.name, 80), abilities, weapons, units, buildings, hqBuildingId };
+    const buildingIds = new Set(buildings.map((b) => b.id));
+    // Older factions stored a single hqBuildingId.
+    const rawHq = Array.isArray(f.hqBuildingIds) ? f.hqBuildingIds : [f.hqBuildingId];
+    const hqBuildingIds = [...new Set(rawHq.filter((id) => buildingIds.has(id)))];
+    return { id: normId(f.id), name: str(f.name, 80), abilities, weapons, units, buildings, hqBuildingIds };
   }
 
   // Shared abilities first, then the item's own custom abilities.
@@ -190,7 +193,7 @@
     },
 
     newFaction() {
-      return { id: uid(), name: '', abilities: [], weapons: [], units: [], buildings: [], hqBuildingId: null };
+      return { id: uid(), name: '', abilities: [], weapons: [], units: [], buildings: [], hqBuildingIds: [] };
     },
 
     newArmy(factionId) {
@@ -218,6 +221,10 @@
 
     findBuilding(faction, id) {
       return faction.buildings.find((b) => b.id === id) || null;
+    },
+
+    isHq(faction, buildingId) {
+      return (faction.hqBuildingIds || []).includes(buildingId);
     },
 
     rangeLabel(range) {

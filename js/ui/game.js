@@ -23,7 +23,7 @@
       const def = model.findBuilding(state.faction, b.buildingId);
       const entry = rules.entryOf(state, b.entryId);
       if (!def || !entry) return '';
-      const isHq = def.id === state.faction.hqBuildingId;
+      const isHq = model.isHq(state.faction, def.id);
       const status = !b.built ? ['Unbuilt', 'red'] : b.exhausted ? ['Exhausted', 'grey'] : ['Ready', 'green'];
       const abilities = model.allAbilities(state.faction, def);
       return `<article class="card building ${b.built ? '' : 'unbuilt'} ${b.exhausted ? 'exhausted' : ''}">

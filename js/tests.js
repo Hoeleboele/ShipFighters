@@ -45,7 +45,7 @@
         { id: 'b1', name: 'Barracks', cost: 20, generation: 0, units: 3, eligibleUnitIds: ['u1', 'u2'] },
         { id: 'b2', name: 'Farm', cost: 10, generation: 2, supplyBonus: 2, units: 0, sharedAbilityIds: ['s3'] },
       ],
-      hqBuildingId: 'hq',
+      hqBuildingIds: ['hq'],
     });
     const army = WHQ.model.newArmy('f1');
     army.name = 'Vanguard';
@@ -72,7 +72,7 @@
     eq(f.buildings[0].units, 3);
     eq(f.buildings[0].supplyBonus, 0);
     eq(f.buildings[0].eligibleUnitIds, ['a']);
-    eq(f.hqBuildingId, null);
+    eq(f.hqBuildingIds, []);
   });
 
   test('weapons are sanitised', () => {
@@ -170,6 +170,22 @@
     eq(WHQ.army.cannotAdd(army, faction, 'hq'), 'Only one HQ');
     for (let i = 0; i < 3; i++) army.entries.push(WHQ.model.newEntry('b2'));
     eq(WHQ.army.cannotAdd(army, faction, 'b2'), 'Max 3');
+  });
+
+  test('multiple HQ buildings: army may pick only one of them', () => {
+    const { faction, army } = fixture();
+    faction.hqBuildingIds = ['hq', 'b1'];
+    army.name = 'A';
+    army.entries.push(WHQ.model.newEntry('b1'));
+    eq(WHQ.army.cannotAdd(army, faction, 'hq'), 'Only one HQ');
+    eq(WHQ.army.validate(army, faction), []);
+    army.entries.push(WHQ.model.newEntry('hq'));
+    assert(WHQ.army.validate(army, faction).some((e) => e.includes('HQ')));
+  });
+
+  test('legacy hqBuildingId is migrated', () => {
+    const f = WHQ.model.normalizeFaction({ buildings: [{ id: 'k' }], hqBuildingId: 'k' });
+    eq(f.hqBuildingIds, ['k']);
   });
 
   test('validate requires exactly one HQ and a name', () => {

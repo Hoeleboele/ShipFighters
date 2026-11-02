@@ -142,7 +142,7 @@
     }
 
     function buildingCard(b, i) {
-      const isHq = draft.hqBuildingId === b.id;
+      const isHq = draft.hqBuildingIds.includes(b.id);
       return `<details class="card" data-id="${esc(b.id)}" ${open.has(b.id) ? 'open' : ''}>
         <summary><span data-title="buildings.${i}">${esc(b.name || 'Unnamed building')}</span>${isHq ? ' <span class="badge gold">HQ</span>' : ''}</summary>
         ${field('Name', `buildings.${i}.name`, b.name)}
@@ -151,7 +151,7 @@
           ${numField('Generation', `buildings.${i}.generation`, b.generation, 0, 99)}
           ${numField('Supply bonus', `buildings.${i}.supplyBonus`, b.supplyBonus, 0, 99)}
           ${numField('Units (0-3)', `buildings.${i}.units`, b.units, 0, model.MAX_UNITS_PER_BUILDING)}
-          <label class="field check"><input type="radio" name="hq" value="${esc(b.id)}" ${isHq ? 'checked' : ''}><span>Faction HQ</span></label>
+          <label class="field check"><input type="checkbox" data-hq value="${esc(b.id)}" ${isHq ? 'checked' : ''}><span>HQ (an army picks one)</span></label>
         </div>
         <fieldset class="eligible">
           <legend>Units this building can field</legend>
@@ -253,8 +253,10 @@
         const u = draft.units[+t.dataset.equip];
         if (u.weaponIds.length < model.MAX_WEAPONS_PER_UNIT) u.weaponIds.push(t.value);
         render();
-      } else if (t.name === 'hq') {
-        draft.hqBuildingId = t.value;
+      } else if (t.dataset.hq !== undefined) {
+        draft.hqBuildingIds = t.checked
+          ? [...draft.hqBuildingIds, t.value]
+          : draft.hqBuildingIds.filter((x) => x !== t.value);
         render();
       } else if (t.dataset.eligible !== undefined) {
         const b = draft.buildings[+t.dataset.eligible];
@@ -320,7 +322,7 @@
         }
         case 'add-building': {
           const b = model.newBuilding();
-          if (!draft.buildings.length) draft.hqBuildingId = b.id;
+          if (!draft.buildings.length) draft.hqBuildingIds = [b.id];
           draft.buildings.push(b);
           open.add(b.id);
           break;
@@ -329,7 +331,7 @@
           const b = draft.buildings[i];
           if (!confirm(`Delete building "${b.name}"?`)) return;
           draft.buildings.splice(i, 1);
-          if (draft.hqBuildingId === b.id) draft.hqBuildingId = null;
+          draft.hqBuildingIds = draft.hqBuildingIds.filter((x) => x !== b.id);
           break;
         }
         case 'add-ability':
@@ -355,7 +357,7 @@
       }
       storage.upsertFaction(faction);
       if (!storage.getSelectedFactionId()) storage.setSelectedFactionId(faction.id);
-      ui.toast(faction.buildings.length && !faction.hqBuildingId ? 'Saved - mark a building as HQ to play' : 'Faction saved');
+      ui.toast(faction.buildings.length && !faction.hqBuildingIds.length ? 'Saved - mark a building as HQ to play' : 'Faction saved');
       ui.go('#/factions');
     }
 

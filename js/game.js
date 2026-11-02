@@ -81,7 +81,7 @@
       buildings: army.entries.map((e) => ({
         entryId: e.id,
         buildingId: e.buildingId,
-        built: e.buildingId === faction.hqBuildingId,
+        built: WHQ.model.isHq(faction, e.buildingId),
         exhausted: false,
       })),
       units: [],

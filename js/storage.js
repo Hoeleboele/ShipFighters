@@ -19,7 +19,8 @@
 
   const storage = {
     getFactions() {
-      return read('factions', []);
+      const list = read('factions', []);
+      return Array.isArray(list) ? list.map(WHQ.model.normalizeFaction) : [];
     },
 
     getFaction(id) {

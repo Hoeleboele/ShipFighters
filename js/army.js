@@ -2,7 +2,7 @@
   'use strict';
 
   const MAX_SAME_BUILDING = 3;
-  const { findBuilding, findUnit } = WHQ.model;
+  const { findBuilding, findUnit, isHq } = WHQ.model;
 
   function cost(army, faction) {
     return army.entries.reduce((sum, e) => {
@@ -15,11 +15,15 @@
     return army.entries.filter((e) => e.buildingId === buildingId).length;
   }
 
+  function hqCount(army, faction) {
+    return army.entries.filter((e) => isHq(faction, e.buildingId)).length;
+  }
+
   // Returns a reason string when the building cannot be added, otherwise null.
   function cannotAdd(army, faction, buildingId) {
     const b = findBuilding(faction, buildingId);
     if (!b) return 'Unknown building';
-    if (buildingId === faction.hqBuildingId && countOf(army, buildingId) >= 1) return 'Only one HQ';
+    if (isHq(faction, buildingId) && hqCount(army, faction) >= 1) return 'Only one HQ';
     if (countOf(army, buildingId) >= MAX_SAME_BUILDING) return `Max ${MAX_SAME_BUILDING}`;
     if (cost(army, faction) + b.cost > army.budget) return 'Not enough points';
     return null;
@@ -31,11 +35,10 @@
     const total = cost(army, faction);
     if (total > army.budget) errors.push(`Army costs ${total} but the budget is ${army.budget}.`);
 
-    if (!faction.hqBuildingId) {
+    if (!faction.hqBuildingIds.length) {
       errors.push('The faction has no HQ building. Mark one in the faction editor.');
-    } else {
-      const hqCount = countOf(army, faction.hqBuildingId);
-      if (hqCount !== 1) errors.push('Army must contain exactly one HQ.');
+    } else if (hqCount(army, faction) !== 1) {
+      errors.push('Army must contain exactly one HQ.');
     }
 
     for (const b of faction.buildings) {

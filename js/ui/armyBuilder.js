@@ -35,7 +35,7 @@
 
     function buildingOption(b) {
       const reason = rules.cannotAdd(draft, faction, b.id);
-      const isHq = b.id === faction.hqBuildingId;
+      const isHq = model.isHq(faction, b.id);
       const count = rules.countOf(draft, b.id);
       return `<article class="card compact">
         <div class="card-head">
@@ -53,7 +53,7 @@
       const eligible = b.eligibleUnitIds.map((uid) => model.findUnit(faction, uid)).filter(Boolean);
       return `<article class="card compact">
         <div class="card-head">
-          <h3>${esc(b.name)} ${b.id === faction.hqBuildingId ? '<span class="badge gold">HQ</span>' : ''}</h3>
+          <h3>${esc(b.name)} ${model.isHq(faction, b.id) ? '<span class="badge gold">HQ</span>' : ''}</h3>
           <button class="btn small danger" data-a="remove" data-i="${i}">Remove</button>
         </div>
         ${b.units ? `
