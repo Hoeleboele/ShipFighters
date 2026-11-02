@@ -23,6 +23,7 @@
       <section class="form grid">
         <label class="field"><span>Army name</span><input id="army-name" type="text" maxlength="80" value="${esc(draft.name)}"></label>
         <label class="field"><span>Point budget</span><input id="army-budget" type="number" inputmode="numeric" min="0" max="99999" value="${draft.budget}"></label>
+        <label class="field"><span>Starting supply</span><input id="army-supply" type="number" inputmode="numeric" min="0" max="999" value="${draft.supply}"></label>
       </section>
       <div id="dyn"></div>
       <div class="savebar">
@@ -41,7 +42,7 @@
           <h3>${esc(b.name)} ${isHq ? '<span class="badge gold">HQ</span>' : ''}</h3>
           <span class="muted">${count}/${isHq ? 1 : rules.MAX_SAME_BUILDING}</span>
         </div>
-        <p class="muted">Cost ${b.cost} &middot; Generation ${b.generation} &middot; Units ${b.units}</p>
+        <p class="muted">Cost ${b.cost} &middot; Generation ${b.generation}${b.supplyBonus ? ` &middot; Supply +${b.supplyBonus}` : ''} &middot; Units ${b.units}</p>
         ${ui.abilities(b.abilities)}
         <button class="btn small ${reason ? '' : 'primary'}" data-a="add" data-id="${esc(b.id)}" ${reason ? 'disabled' : ''}>${reason ? esc(reason) : `Add (${b.cost} pts)`}</button>
       </article>`;
@@ -88,6 +89,7 @@
           <article class="card compact">
             <div class="card-head"><h3>${esc(r.unit.name)}</h3><span class="muted">${esc(r.building.name)}</span></div>
             ${ui.statline(r.unit)}
+            ${ui.weapons(faction, r.unit)}
             ${ui.abilities(r.unit.abilities)}
           </article>`).join('') : ui.empty('No units yet.')}</section>
         ${errors.length ? `<ul class="errors">${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>` : ''}`;
@@ -100,6 +102,8 @@
       } else if (ev.target.id === 'army-budget') {
         draft.budget = int(ev.target.value, 0, 99999, 0);
         render();
+      } else if (ev.target.id === 'army-supply') {
+        draft.supply = int(ev.target.value, 0, 999, 0);
       }
     });
 

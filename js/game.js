@@ -4,7 +4,7 @@
   const BASE_CP = 3;
   const MAX_HISTORY = 30;
   const { clone, uid } = WHQ.util;
-  const { findBuilding } = WHQ.model;
+  const { findBuilding, findUnit, normalizeFaction, pruneArmy, DEFAULT_ARMY_SUPPLY, DEFAULT_UNIT_SUPPLY } = WHQ.model;
 
   function entryOf(state, entryId) {
     return state.army.entries.find((e) => e.id === entryId) || null;
@@ -33,6 +33,27 @@
     state.cp -= 1;
   }
 
+  function unitSupply(state, unitId) {
+    const def = findUnit(state.faction, unitId);
+    return def && Number.isFinite(def.supply) ? def.supply : DEFAULT_UNIT_SUPPLY;
+  }
+
+  // Supply is derived from units/buildings, so undo and slain units restore it automatically.
+  function supplyFor(state) {
+    const base = Number.isFinite(state.army.supply) ? state.army.supply : DEFAULT_ARMY_SUPPLY;
+    return state.buildings
+      .filter((b) => b.built)
+      .reduce((sum, b) => sum + (findBuilding(state.faction, b.buildingId)?.supplyBonus || 0), base);
+  }
+
+  function supplyUsed(state) {
+    return state.units.filter((u) => !u.dead).reduce((sum, u) => sum + unitSupply(state, u.unitId), 0);
+  }
+
+  function supplyLeft(state) {
+    return Math.max(0, supplyFor(state) - supplyUsed(state));
+  }
+
   function slotOccupant(state, entryId, slot) {
     return state.units.find((u) => !u.dead && u.entryId === entryId && u.slot === slot) || null;
   }
@@ -49,10 +70,12 @@
     return next;
   }
 
-  function newGame(faction, army) {
+  function newGame(rawFaction, rawArmy) {
+    const faction = normalizeFaction(clone(rawFaction));
+    const army = pruneArmy(clone(rawArmy), faction);
     const state = {
-      faction: clone(faction),
-      army: clone(army),
+      faction,
+      army,
       round: 1,
       cp: 0,
       buildings: army.entries.map((e) => ({
@@ -107,6 +130,7 @@
       const unitId = entry && entry.unitPicks[slot];
       if (!unitId) throw new Error('No unit in that slot');
       if (slotOccupant(s, entryId, slot)) throw new Error('That unit is already on the table');
+      if (unitSupply(s, unitId) > supplyLeft(s)) throw new Error('Not enough supply');
       spend(s);
       s.units.push({ id: uid(), entryId, slot, unitId, activated: false, dead: false });
     });
@@ -139,6 +163,10 @@
     BASE_CP,
     newGame,
     cpFor,
+    supplyFor,
+    supplyUsed,
+    supplyLeft,
+    unitSupply,
     slotOccupant,
     entryOf,
     activateUnit,

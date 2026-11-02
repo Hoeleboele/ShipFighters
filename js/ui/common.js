@@ -30,14 +30,35 @@
     statline(unit) {
       const stats = [
         ['HP', unit.health],
-        ['ATK', unit.attack],
         ['DEF', unit.defense],
         ['DOD', unit.dodge],
-        ['RNG', WHQ.model.rangeLabel(unit.range)],
+        ['SUP', Number.isFinite(unit.supply) ? unit.supply : WHQ.model.DEFAULT_UNIT_SUPPLY],
       ];
       return `<dl class="stats">${stats
         .map(([k, v]) => `<div><dt>${k}</dt><dd>${esc(v)}</dd></div>`)
         .join('')}</dl>`;
+    },
+
+    weaponSummary(w) {
+      return `${w.hit}+ · A${w.attacks} · ${WHQ.model.rangeLabel(w.range)} · AP${w.ap}`;
+    },
+
+    weapons(faction, unit) {
+      const list = WHQ.model.unitWeapons(faction, unit);
+      if (!list.length) return '<p class="muted weapons-none">No weapons</p>';
+      return `<table class="weapons">
+        <thead><tr><th>Weapon</th><th>Hit</th><th>A</th><th>Rng</th><th>AP</th></tr></thead>
+        <tbody>${list.map(({ weapon: w, count }) => `
+          <tr>
+            <td>${count > 1 ? `${count}&times; ` : ''}${esc(w.name || 'Weapon')}</td>
+            <td>${w.hit}+</td>
+            <td>${esc(w.attacks)}</td>
+            <td>${esc(WHQ.model.rangeLabel(w.range))}</td>
+            <td>${w.ap}</td>
+          </tr>
+          ${w.abilities.length ? `<tr class="weapon-abilities"><td colspan="5">${WHQ.ui.abilities(w.abilities)}</td></tr>` : ''}`).join('')}
+        </tbody>
+      </table>`;
     },
 
     abilities(list) {

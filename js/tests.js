@@ -27,14 +27,18 @@
     const faction = WHQ.model.normalizeFaction({
       id: 'f1',
       name: 'Iron Court',
+      weapons: [
+        { id: 'w1', name: 'Sword', hit: 3, attacks: 2, range: 'melee', ap: 1 },
+        { id: 'w2', name: 'Bow', hit: 4, attacks: 'D6', range: 18, ap: 0 },
+      ],
       units: [
-        { id: 'u1', name: 'Knight', health: 3, attack: 4, defense: 3, dodge: 1, range: 'melee' },
-        { id: 'u2', name: 'Archer', health: 1, attack: 2, defense: 1, dodge: 2, range: 12 },
+        { id: 'u1', name: 'Knight', health: 3, defense: 3, dodge: 1, supply: 3, weaponIds: ['w1', 'w1', 'w2'] },
+        { id: 'u2', name: 'Archer', health: 1, defense: 1, dodge: 2, supply: 1, weaponIds: ['w2'] },
       ],
       buildings: [
         { id: 'hq', name: 'Keep', cost: 30, generation: 1, units: 1, eligibleUnitIds: ['u1'], abilities: [{ name: 'Rally', text: 'x' }] },
         { id: 'b1', name: 'Barracks', cost: 20, generation: 0, units: 3, eligibleUnitIds: ['u1', 'u2'] },
-        { id: 'b2', name: 'Farm', cost: 10, generation: 2, units: 0 },
+        { id: 'b2', name: 'Farm', cost: 10, generation: 2, supplyBonus: 2, units: 0 },
       ],
       hqBuildingId: 'hq',
     });
@@ -55,11 +59,53 @@
     eq(f.name, '');
     eq(f.units.length, 3);
     eq(f.units[1].health, 7);
-    eq(f.units[1].range, 'melee');
+    eq(f.units[1].weaponIds, []);
+    eq(f.units[1].supply, 1);
+    eq('range' in f.units[1], false);
     assert(f.units[1].id !== f.units[2].id, 'duplicate ids fixed');
     eq(f.buildings[0].units, 3);
+    eq(f.buildings[0].supplyBonus, 0);
     eq(f.buildings[0].eligibleUnitIds, ['a']);
     eq(f.hqBuildingId, null);
+  });
+
+  test('weapons are sanitised', () => {
+    const w = (x) => WHQ.model.normalizeWeapon(x);
+    eq(w({ hit: 1 }).hit, 2);
+    eq(w({ hit: 9 }).hit, 6);
+    eq(w({}).hit, 4);
+    eq(w({ attacks: 3 }).attacks, '3');
+    eq(w({ attacks: '2d6' }).attacks, '2D6');
+    eq(w({ attacks: 'D3+1' }).attacks, 'D3+1');
+    eq(w({ attacks: 'abc' }).attacks, '1');
+    eq(w({ ap: -2 }).ap, 0);
+    eq(w({ range: 'far' }).range, 'melee');
+    eq(w({ range: '24' }).range, 24);
+  });
+
+  test('unit weapons: unknown ids dropped, duplicates kept, old units get none', () => {
+    const f = WHQ.model.normalizeFaction({
+      weapons: [{ id: 'w1', name: 'Pistol' }],
+      units: [{ id: 'a', weaponIds: ['w1', 'nope', 'w1'] }, { id: 'b', attack: 4, range: 12 }],
+    });
+    eq(f.units[0].weaponIds, ['w1', 'w1']);
+    eq(f.units[1].weaponIds, []);
+    eq('attack' in f.units[1], false);
+  });
+
+  test('unitWeapons merges duplicates and sorts by range, melee last', () => {
+    const { faction } = fixture();
+    faction.weapons.push({ id: 'w3', name: 'Pistol', hit: 4, attacks: '1', range: 6, ap: 0, abilities: [] });
+    const knight = { weaponIds: ['w1', 'w3', 'w1', 'w2'] };
+    eq(WHQ.model.unitWeapons(faction, knight).map((x) => [x.weapon.name, x.count]), [['Bow', 1], ['Pistol', 1], ['Sword', 2]]);
+  });
+
+  test('supply defaults', () => {
+    eq(WHQ.model.newArmy('f').supply, 7);
+    eq(WHQ.model.newUnit().supply, 1);
+    eq(WHQ.model.newBuilding().supplyBonus, 0);
+    const { faction } = fixture();
+    eq(WHQ.model.pruneArmy({ id: 'a', factionId: 'f1', name: 'Old', budget: 100, entries: [] }, faction).supply, 7);
   });
 
   test('pruneArmy drops removed buildings and units', () => {
@@ -183,6 +229,50 @@
     eq(s.cp, 4);
     eq(s.buildings[1].built, false);
     throws(() => WHQ.game.undo(s));
+  });
+
+  test('supply: base plus bonus of built buildings only', () => {
+    let s = startGame();
+    eq(WHQ.game.supplyFor(s), 7);
+    s = WHQ.game.build(s, 'eF');
+    eq(WHQ.game.supplyFor(s), 9);
+  });
+
+  test('supply: creating units uses supply, short supply blocks without spending CP', () => {
+    let s = startGame();
+    s = { ...s, army: { ...s.army, supply: 3 } };
+    s = WHQ.game.createUnit(s, 'eHq', 0); // Knight, 3 supply
+    eq(WHQ.game.supplyUsed(s), 3);
+    eq(WHQ.game.supplyLeft(s), 0);
+    s = WHQ.game.build(s, 'eB');
+    const cp = s.cp;
+    throws(() => WHQ.game.createUnit(s, 'eB', 1), 'archer needs 1 supply');
+    eq(s.cp, cp);
+  });
+
+  test('supply: slain units return supply and undo restores it', () => {
+    let s = startGame();
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    eq(WHQ.game.supplyLeft(s), 4);
+    s = WHQ.game.killUnit(s, s.units[0].id);
+    eq(WHQ.game.supplyLeft(s), 7);
+    s = WHQ.game.undo(s);
+    eq(WHQ.game.supplyLeft(s), 4);
+  });
+
+  test('supply left never goes below zero', () => {
+    let s = startGame();
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    s = { ...s, army: { ...s.army, supply: 0 } };
+    eq(WHQ.game.supplyLeft(s), 0);
+  });
+
+  test('new game fills supply defaults for old data', () => {
+    const { faction, army } = fixture();
+    delete army.supply;
+    army.entries.push({ id: 'eHq', buildingId: 'hq', unitPicks: ['u1'] });
+    const s = WHQ.game.newGame(faction, army);
+    eq(s.army.supply, 7);
   });
 
   // --- share ---

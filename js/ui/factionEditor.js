@@ -33,27 +33,65 @@
       return;
     }
 
-    const draft = isNew ? model.newFaction() : clone(existing);
+    const draft = isNew ? model.newFaction() : model.normalizeFaction(clone(existing));
     const open = new Set();
 
+    function rangeFields(kind, i, range) {
+      const ranged = range !== 'melee';
+      return `<label class="field"><span>Range</span>
+          <select data-range="${i}" data-kind="${kind}">
+            <option value="melee" ${ranged ? '' : 'selected'}>Melee</option>
+            <option value="ranged" ${ranged ? 'selected' : ''}>Ranged</option>
+          </select>
+        </label>
+        ${ranged ? numField('Distance', `${kind}.${i}.range`, range, 0, 9999) : ''}`;
+    }
+
+    function weaponCard(w, i) {
+      return `<details class="card" data-id="${esc(w.id)}" ${open.has(w.id) ? 'open' : ''}>
+        <summary><span data-title="weapons.${i}">${esc(w.name || 'Unnamed weapon')}</span></summary>
+        ${field('Name', `weapons.${i}.name`, w.name)}
+        <div class="grid">
+          ${numField('Hit (X+ on D6)', `weapons.${i}.hit`, w.hit, 2, 6)}
+          ${field('Attacks (3, D6, 2D6, D3+1)', `weapons.${i}.attacks`, w.attacks, 'type="text" maxlength="12"')}
+          ${rangeFields('weapons', i, w.range)}
+          ${numField('AP', `weapons.${i}.ap`, w.ap, 0, 99)}
+        </div>
+        ${abilitiesEditor('weapons', i, w.abilities)}
+        <button class="btn small danger" data-a="del-weapon" data-i="${i}">Delete weapon</button>
+      </details>`;
+    }
+
+    function weaponPicker(u, i) {
+      if (!draft.weapons.length) return '<p class="muted">Add weapons first.</p>';
+      const name = (id) => {
+        const w = model.findWeapon(draft, id);
+        return w ? w.name || 'Unnamed weapon' : 'Unknown';
+      };
+      return `<ul class="chips">
+          ${u.weaponIds.map((id, j) => `<li>${esc(name(id))} <button class="chip-x" data-a="unequip" data-i="${i}" data-j="${j}" aria-label="Remove">&times;</button></li>`).join('')}
+        </ul>
+        ${u.weaponIds.length < model.MAX_WEAPONS_PER_UNIT ? `
+          <select data-equip="${i}">
+            <option value="">+ Equip weapon&hellip;</option>
+            ${draft.weapons.map((w) => `<option value="${esc(w.id)}">${esc(w.name || 'Unnamed weapon')} (${esc(ui.weaponSummary(w))})</option>`).join('')}
+          </select>` : ''}`;
+    }
+
     function unitCard(u, i) {
-      const ranged = u.range !== 'melee';
       return `<details class="card" data-id="${esc(u.id)}" ${open.has(u.id) ? 'open' : ''}>
         <summary><span data-title="units.${i}">${esc(u.name || 'Unnamed unit')}</span></summary>
         ${field('Name', `units.${i}.name`, u.name)}
         <div class="grid">
           ${numField('Health', `units.${i}.health`, u.health, 0, 9999)}
-          ${numField('Attack', `units.${i}.attack`, u.attack, 0, 9999)}
           ${numField('Defense', `units.${i}.defense`, u.defense, 0, 9999)}
           ${numField('Dodge', `units.${i}.dodge`, u.dodge, 0, 9999)}
-          <label class="field"><span>Range</span>
-            <select data-range="${i}">
-              <option value="melee" ${ranged ? '' : 'selected'}>Melee</option>
-              <option value="ranged" ${ranged ? 'selected' : ''}>Ranged</option>
-            </select>
-          </label>
-          ${ranged ? numField('Distance', `units.${i}.range`, u.range, 0, 9999) : ''}
+          ${numField('Supply', `units.${i}.supply`, u.supply, 0, 99)}
         </div>
+        <fieldset class="eligible">
+          <legend>Weapons</legend>
+          ${weaponPicker(u, i)}
+        </fieldset>
         ${abilitiesEditor('units', i, u.abilities)}
         <button class="btn small danger" data-a="del-unit" data-i="${i}">Delete unit</button>
       </details>`;
@@ -67,6 +105,7 @@
         <div class="grid">
           ${numField('Cost', `buildings.${i}.cost`, b.cost, 0, 99999)}
           ${numField('Generation', `buildings.${i}.generation`, b.generation, 0, 99)}
+          ${numField('Supply bonus', `buildings.${i}.supplyBonus`, b.supplyBonus, 0, 99)}
           ${numField('Units (0-3)', `buildings.${i}.units`, b.units, 0, model.MAX_UNITS_PER_BUILDING)}
           <label class="field check"><input type="radio" name="hq" value="${esc(b.id)}" ${isHq ? 'checked' : ''}><span>Faction HQ</span></label>
         </div>
@@ -86,6 +125,9 @@
         <section class="form">
           ${field('Faction name', 'name', draft.name)}
         </section>
+        <h2 class="section">Weapons</h2>
+        <section class="list">${draft.weapons.map(weaponCard).join('')}</section>
+        <button class="btn" data-a="add-weapon">+ Add weapon</button>
         <h2 class="section">Units</h2>
         <section class="list">${draft.units.map(unitCard).join('')}</section>
         <button class="btn" data-a="add-unit">+ Add unit</button>
@@ -123,7 +165,12 @@
     el.addEventListener('change', (ev) => {
       const t = ev.target;
       if (t.dataset.range !== undefined) {
-        draft.units[+t.dataset.range].range = t.value === 'melee' ? 'melee' : 1;
+        draft[t.dataset.kind][+t.dataset.range].range = t.value === 'melee' ? 'melee' : 1;
+        render();
+      } else if (t.dataset.equip !== undefined) {
+        if (!t.value) return;
+        const u = draft.units[+t.dataset.equip];
+        if (u.weaponIds.length < model.MAX_WEAPONS_PER_UNIT) u.weaponIds.push(t.value);
         render();
       } else if (t.name === 'hq') {
         draft.hqBuildingId = t.value;
@@ -141,6 +188,22 @@
       if (!btn) return;
       const i = +btn.dataset.i;
       switch (btn.dataset.a) {
+        case 'add-weapon': {
+          const w = model.newWeapon();
+          draft.weapons.push(w);
+          open.add(w.id);
+          break;
+        }
+        case 'del-weapon': {
+          const w = draft.weapons[i];
+          if (!confirm(`Delete weapon "${w.name}"? It is removed from every unit that carries it.`)) return;
+          draft.weapons.splice(i, 1);
+          draft.units.forEach((u) => (u.weaponIds = u.weaponIds.filter((x) => x !== w.id)));
+          break;
+        }
+        case 'unequip':
+          draft.units[i].weaponIds.splice(+btn.dataset.j, 1);
+          break;
         case 'add-unit': {
           const u = model.newUnit();
           draft.units.push(u);

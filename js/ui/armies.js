@@ -25,7 +25,7 @@
                 <h2>${esc(a.name || 'Unnamed army')}</h2>
                 <span class="badge ${valid ? 'green' : 'red'}">${valid ? 'Ready' : 'Needs attention'}</span>
               </div>
-              <p class="muted">${armyRules.cost(a, faction)} / ${a.budget} points &middot; ${a.entries.length} buildings &middot; ${armyRules.roster(a, faction).length} units</p>
+              <p class="muted">${armyRules.cost(a, faction)} / ${a.budget} points &middot; ${Number.isFinite(a.supply) ? a.supply : WHQ.model.DEFAULT_ARMY_SUPPLY} supply &middot; ${a.entries.length} buildings &middot; ${armyRules.roster(a, faction).length} units</p>
               <div class="actions">
                 <button class="btn small" data-go="#/army/${esc(a.id)}">Edit</button>
                 <button class="btn small danger" data-a="delete" data-id="${esc(a.id)}">Delete</button>

@@ -9,14 +9,15 @@
 
   WHQ.ui.screens.game = function (el) {
     let state = storage.getGame();
+    let supplyLeft = 0;
     if (!state) {
       el.innerHTML = ui.header('Battle', '#/menu') +
         ui.empty('No battle in progress.', '<button class="btn primary" data-go="#/play">Start</button>');
       return;
     }
 
-    const cpBtn = (label, action, attrs, disabled) =>
-      `<button class="btn small primary" data-a="${action}" ${attrs} ${disabled || state.cp < 1 ? 'disabled' : ''}>${label} <span class="cost">1 CP</span></button>`;
+    const cpBtn = (label, action, attrs, disabled, extra) =>
+      `<button class="btn small primary" data-a="${action}" ${attrs} ${disabled || state.cp < 1 ? 'disabled' : ''}>${label} <span class="cost">1 CP${extra ? ` &middot; ${extra}` : ''}</span></button>`;
 
     function buildingCard(b) {
       const def = model.findBuilding(state.faction, b.buildingId);
@@ -30,6 +31,7 @@
           <span class="badge ${status[1]}">${status[0]}</span>
         </div>
         ${def.generation ? `<p class="muted">Generates +${def.generation} CP per round</p>` : ''}
+        ${def.supplyBonus ? `<p class="muted">${b.built ? 'Gives' : 'Gives when built'} +${def.supplyBonus} supply</p>` : ''}
         ${ui.abilities(def.abilities)}
         <div class="actions">
           ${!b.built ? cpBtn('Build', 'build', `data-entry="${esc(b.entryId)}"`) : ''}
@@ -38,10 +40,11 @@
         ${entry.unitPicks.length ? `<ul class="slots">${entry.unitPicks.map((uid, slot) => {
           const unit = model.findUnit(state.faction, uid);
           const onTable = rules.slotOccupant(state, b.entryId, slot);
+          const sup = rules.unitSupply(state, uid);
           return `<li>
             <span>${esc(unit ? unit.name : 'Unknown')}</span>
             ${onTable ? '<span class="badge green">On the field</span>'
-              : b.built ? cpBtn('Create', 'create', `data-entry="${esc(b.entryId)}" data-slot="${slot}"`)
+              : b.built ? cpBtn('Create', 'create', `data-entry="${esc(b.entryId)}" data-slot="${slot}"`, sup > supplyLeft, `${sup} Supply`)
               : '<span class="muted">Build first</span>'}
           </li>`;
         }).join('')}</ul>` : ''}
@@ -73,6 +76,7 @@
           <span class="muted">${ready.length} ready</span>
         </div>
         ${ui.statline(def)}
+        ${ui.weapons(state.faction, def)}
         ${ui.abilities(def.abilities)}
         <div class="actions">
           ${ready.length ? cpBtn('Activate one', 'activate', `data-unit="${esc(ready[0].id)}"`) : '<span class="badge grey">All activated</span>'}
@@ -97,11 +101,13 @@
     function render() {
       const alive = state.units.filter((u) => !u.dead);
       const dead = state.units.filter((u) => u.dead);
+      supplyLeft = rules.supplyLeft(state);
       el.innerHTML = `
         <header class="bar game-bar">
           <a class="back" href="#/menu" aria-label="Menu">&#8592;</a>
           <div class="round">Round ${state.round}</div>
           <div class="cp" aria-label="Command points"><span>${state.cp}</span> CP</div>
+          <div class="cp supply" aria-label="Supply left"><span>${supplyLeft}</span>/ ${rules.supplyFor(state)} Supply</div>
         </header>
         <p class="muted center">${esc(state.army.name)} &middot; ${esc(state.faction.name)}</p>
         <div class="controls">

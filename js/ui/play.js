@@ -28,7 +28,7 @@
           return `<article class="card">
             <div class="card-head">
               <h2>${esc(a.name)}</h2>
-              <span class="muted">${rules.cost(a, faction)} / ${a.budget} pts</span>
+              <span class="muted">${rules.cost(a, faction)} / ${a.budget} pts &middot; ${Number.isFinite(a.supply) ? a.supply : WHQ.model.DEFAULT_ARMY_SUPPLY} supply</span>
             </div>
             ${errors.length
               ? `<ul class="errors">${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>
