@@ -148,7 +148,6 @@
         ${field('Name', `buildings.${i}.name`, b.name)}
         <div class="grid">
           ${numField('Cost', `buildings.${i}.cost`, b.cost, 0, 99999)}
-          ${numField('Generation', `buildings.${i}.generation`, b.generation, 0, 99)}
           ${numField('Supply bonus', `buildings.${i}.supplyBonus`, b.supplyBonus, 0, 99)}
           ${numField('Units (0-3)', `buildings.${i}.units`, b.units, 0, model.MAX_UNITS_PER_BUILDING)}
           <label class="field check"><input type="checkbox" data-hq value="${esc(b.id)}" ${isHq ? 'checked' : ''}><span>HQ (an army picks one)</span></label>

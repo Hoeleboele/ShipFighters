@@ -21,6 +21,10 @@
         <p>A battle with <strong>${esc(game.army.name)}</strong> is in progress (round ${game.round}). Starting a new one ends it.</p>
         <button class="btn primary" data-go="#/game">Continue battle</button>
       </article>` : ''}
+      <div class="grid">
+        <label class="field"><span>Starting CP</span><input id="start-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.BASE_CP}"></label>
+        <label class="field"><span>CP per round</span><input id="round-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.BASE_CP}"></label>
+      </div>
       <p class="muted center">Choose an army of <strong>${esc(faction.name)}</strong></p>
       <section class="list">
         ${armies.length ? armies.map((a) => {
@@ -44,7 +48,10 @@
       const army = storage.getArmy(btn.dataset.id);
       if (!army) return;
       if (game && !confirm('End the current battle and start a new one?')) return;
-      storage.saveGame(WHQ.game.newGame(faction, army));
+      storage.saveGame(WHQ.game.newGame(faction, army, {
+        startCp: el.querySelector('#start-cp').value,
+        cpPerRound: el.querySelector('#round-cp').value,
+      }));
       ui.go('#/game');
     });
   };

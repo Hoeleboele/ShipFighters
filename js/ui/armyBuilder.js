@@ -42,7 +42,7 @@
           <h3>${esc(b.name)} ${isHq ? '<span class="badge gold">HQ</span>' : ''}</h3>
           <span class="muted">${count}/${isHq ? 1 : rules.MAX_SAME_BUILDING}</span>
         </div>
-        <p class="muted">Cost ${b.cost} &middot; Generation ${b.generation}${b.supplyBonus ? ` &middot; Supply +${b.supplyBonus}` : ''} &middot; Units ${b.units}</p>
+        <p class="muted">Cost ${b.cost}${b.supplyBonus ? ` &middot; Supply +${b.supplyBonus}` : ''} &middot; Units ${b.units}</p>
         ${ui.abilities(model.allAbilities(faction, b))}
         <button class="btn small ${reason ? '' : 'primary'}" data-a="add" data-id="${esc(b.id)}" ${reason ? 'disabled' : ''}>${reason ? esc(reason) : `Add (${b.cost} pts)`}</button>
       </article>`;

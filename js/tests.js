@@ -206,19 +206,25 @@
   });
 
   // --- game ---
-  function startGame() {
+  function startGame(options) {
     const { faction, army } = fixture();
     army.entries.push({ id: 'eHq', buildingId: 'hq', unitPicks: ['u1'] });
     army.entries.push({ id: 'eB', buildingId: 'b1', unitPicks: ['u1', 'u2', 'u2'] });
     army.entries.push({ id: 'eF', buildingId: 'b2', unitPicks: [] });
-    return WHQ.game.newGame(faction, army);
+    return WHQ.game.newGame(faction, army, options || { startCp: 4, cpPerRound: 2 });
   }
 
-  test('new game: HQ built, CP = 3 + HQ generation', () => {
+  test('new game: HQ built, CP = chosen starting CP', () => {
     const s = startGame();
     eq(s.round, 1);
     eq(s.cp, 4);
     eq(s.buildings.map((b) => b.built), [true, false, false]);
+  });
+
+  test('new game: CP defaults to base CP', () => {
+    const s = startGame({});
+    eq(s.cp, WHQ.game.BASE_CP);
+    eq(s.cpPerRound, WHQ.game.BASE_CP);
   });
 
   test('build, create, activate spend CP', () => {
@@ -255,14 +261,14 @@
     throws(() => WHQ.game.useAbility(s, 'eF'), 'unbuilt farm');
   });
 
-  test('next round: CP = 3 + generation of built buildings, resets activation', () => {
+  test('next round: CP = chosen CP per round, buildings do not add CP, resets activation', () => {
     let s = startGame();
     s = WHQ.game.build(s, 'eF');
     s = WHQ.game.createUnit(s, 'eHq', 0);
     s = WHQ.game.activateUnit(s, s.units[0].id);
     s = WHQ.game.nextRound(s);
     eq(s.round, 2);
-    eq(s.cp, 3 + 1 + 2);
+    eq(s.cp, 2);
     eq(s.units[0].activated, false);
   });
 

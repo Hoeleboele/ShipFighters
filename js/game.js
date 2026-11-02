@@ -23,9 +23,12 @@
   }
 
   function cpFor(state) {
-    return state.buildings
-      .filter((b) => b.built)
-      .reduce((sum, b) => sum + (findBuilding(state.faction, b.buildingId)?.generation || 0), BASE_CP);
+    return Number.isFinite(state.cpPerRound) ? state.cpPerRound : BASE_CP;
+  }
+
+  function cpSetting(value) {
+    const n = Math.floor(Number(value));
+    return Number.isFinite(n) ? Math.min(99, Math.max(0, n)) : BASE_CP;
   }
 
   function spend(state) {
@@ -70,14 +73,15 @@
     return next;
   }
 
-  function newGame(rawFaction, rawArmy) {
+  function newGame(rawFaction, rawArmy, options = {}) {
     const faction = normalizeFaction(clone(rawFaction));
     const army = pruneArmy(clone(rawArmy), faction);
-    const state = {
+    return {
       faction,
       army,
       round: 1,
-      cp: 0,
+      cp: cpSetting(options.startCp ?? BASE_CP),
+      cpPerRound: cpSetting(options.cpPerRound ?? BASE_CP),
       buildings: army.entries.map((e) => ({
         entryId: e.id,
         buildingId: e.buildingId,
@@ -87,8 +91,6 @@
       units: [],
       history: [],
     };
-    state.cp = cpFor(state);
-    return state;
   }
 
   function activateUnit(state, instanceId) {

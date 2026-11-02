@@ -102,7 +102,6 @@
       id: normId(b.id),
       name: str(b.name, 80),
       cost: int(b.cost, 0, 99999, 0),
-      generation: int(b.generation, 0, 99, 0),
       supplyBonus: int(b.supplyBonus, 0, 99, 0),
       units: int(b.units, 0, MAX_UNITS_PER_BUILDING, 0),
       eligibleUnitIds: [...new Set(arr(b.eligibleUnitIds, 200).filter((id) => unitIds.has(id)))],
@@ -189,7 +188,7 @@
     },
 
     newBuilding() {
-      return { id: uid(), name: 'New building', cost: 10, generation: 0, supplyBonus: 0, units: 0, eligibleUnitIds: [], sharedAbilityIds: [], abilities: [] };
+      return { id: uid(), name: 'New building', cost: 10, supplyBonus: 0, units: 0, eligibleUnitIds: [], sharedAbilityIds: [], abilities: [] };
     },
 
     newFaction() {

@@ -31,7 +31,6 @@
           <h3>${esc(def.name)} ${isHq ? '<span class="badge gold">HQ</span>' : ''}</h3>
           <span class="badge ${status[1]}">${status[0]}</span>
         </div>
-        ${def.generation ? `<p class="muted">Generates +${def.generation} CP per round</p>` : ''}
         ${def.supplyBonus ? `<p class="muted">${b.built ? 'Gives' : 'Gives when built'} +${def.supplyBonus} supply</p>` : ''}
         ${ui.abilities(abilities)}
         <div class="actions">
