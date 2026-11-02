@@ -236,6 +236,41 @@
     throws(() => WHQ.game.activateUnit(s, s.units[0].id), 'cannot activate twice');
   });
 
+  test('activateUnits spends 1 CP per ready unit, skipping activated and dead', () => {
+    let s = startGame({ startCp: 9, cpPerRound: 1 });
+    s = { ...s, army: { ...s.army, supply: 20 } };
+    s = WHQ.game.build(s, 'eB');
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    s = WHQ.game.createUnit(s, 'eB', 0);
+    s = WHQ.game.createUnit(s, 'eB', 1);
+    s = WHQ.game.createUnit(s, 'eB', 2);
+    s = WHQ.game.activateUnit(s, s.units[0].id);
+    s = WHQ.game.killUnit(s, s.units[1].id);
+    eq(s.cp, 3);
+    s = WHQ.game.activateUnits(s, s.units.map((u) => u.id));
+    eq(s.cp, 1);
+    eq(s.units.filter((u) => !u.dead).every((u) => u.activated), true);
+    eq(s.units[1].activated, false);
+    throws(() => WHQ.game.activateUnits(s, s.units.map((u) => u.id)), 'none ready');
+  });
+
+  test('activateUnits needs enough CP and undoes in one step', () => {
+    let s = startGame();
+    s = WHQ.game.createUnit(s, 'eHq', 0);
+    s = WHQ.game.build(s, 'eB');
+    s = WHQ.game.createUnit(s, 'eB', 0);
+    const ids = s.units.map((u) => u.id);
+    const short = { ...s, cp: 1 };
+    throws(() => WHQ.game.activateUnits(short, ids));
+    eq(short.units.some((u) => u.activated), false);
+    s = { ...s, cp: 2 };
+    s = WHQ.game.activateUnits(s, ids);
+    eq(s.cp, 0);
+    s = WHQ.game.undo(s);
+    eq(s.cp, 2);
+    eq(s.units.some((u) => u.activated), false);
+  });
+
   test('cannot act without CP', () => {
     let s = startGame();
     s = { ...s, cp: 0 };

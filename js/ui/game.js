@@ -16,8 +16,11 @@
       return;
     }
 
-    const cpBtn = (label, action, attrs, disabled, extra) =>
-      `<button class="btn small primary" data-a="${action}" ${attrs} ${disabled || state.cp < 1 ? 'disabled' : ''}>${label} <span class="cost">1 CP${extra ? ` &middot; ${extra}` : ''}</span></button>`;
+    const cpBtn = (label, action, attrs, disabled, extra, cost = 1) =>
+      `<button class="btn small primary" data-a="${action}" ${attrs} ${disabled || state.cp < cost ? 'disabled' : ''}>${label} <span class="cost">${cost} CP${extra ? ` &middot; ${extra}` : ''}</span></button>`;
+
+    const activateAllBtn = (label, ready) =>
+      cpBtn(label, 'activate-all', `data-units="${esc(ready.map((u) => u.id).join(','))}"`, false, '', ready.length);
 
     function buildingCard(b) {
       const def = model.findBuilding(state.faction, b.buildingId);
@@ -80,6 +83,7 @@
         ${ui.abilities(model.allAbilities(state.faction, def))}
         <div class="actions">
           ${ready.length ? cpBtn('Activate one', 'activate', `data-unit="${esc(ready[0].id)}"`) : '<span class="badge grey">All activated</span>'}
+          ${ready.length >= 2 ? activateAllBtn('Activate all', ready) : ''}
         </div>
         <details class="instances" data-unit-card="${esc(unitId)}" ${openUnits.has(unitId) ? 'open' : ''}>
           <summary>Individual units</summary>
@@ -101,6 +105,7 @@
     function render() {
       const alive = state.units.filter((u) => !u.dead);
       const dead = state.units.filter((u) => u.dead);
+      const ready = alive.filter((u) => !u.activated);
       supplyLeft = rules.supplyLeft(state);
       el.innerHTML = `
         <header class="bar game-bar">
@@ -122,7 +127,10 @@
         <section class="list">
           ${activeTab === 'base'
             ? state.buildings.map(buildingCard).join('')
-            : (alive.length ? groupByType(alive).map(unitGroupCard).join('') : ui.empty('No units on the field. Create them from your buildings.'))
+            : (alive.length
+                ? `<div class="controls">${ready.length ? activateAllBtn('Activate all units', ready) : '<span class="badge grey">All activated</span>'}</div>`
+                  + groupByType(alive).map(unitGroupCard).join('')
+                : ui.empty('No units on the field. Create them from your buildings.'))
               + (dead.length ? `<details class="fallen"><summary>Fallen (${dead.length})</summary>${fallenList(dead)}</details>` : '')}
         </section>`;
     }
@@ -159,6 +167,7 @@
         case 'ability': run((s) => rules.useAbility(s, d.entry)); break;
         case 'create': run((s) => rules.createUnit(s, d.entry, +d.slot)); break;
         case 'activate': run((s) => rules.activateUnit(s, d.unit)); break;
+        case 'activate-all': run((s) => rules.activateUnits(s, d.units.split(','))); break;
         case 'kill': run((s) => rules.killUnit(s, d.unit)); break;
         case 'undo': run(rules.undo); break;
         case 'next':

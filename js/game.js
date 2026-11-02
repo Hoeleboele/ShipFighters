@@ -108,6 +108,16 @@
     });
   }
 
+  function activateUnits(state, instanceIds) {
+    return act(state, (s) => {
+      const ready = instanceIds.map((id) => unitOf(s, id)).filter((u) => !u.dead && !u.activated);
+      if (!ready.length) throw new Error('No units to activate');
+      if (s.cp < ready.length) throw new Error('Not enough command points');
+      s.cp -= ready.length;
+      ready.forEach((u) => (u.activated = true));
+    });
+  }
+
   function build(state, entryId) {
     return act(state, (s) => {
       const b = buildingOf(s, entryId);
@@ -178,6 +188,7 @@
     slotOccupant,
     entryOf,
     activateUnit,
+    activateUnits,
     build,
     useAbility,
     createUnit,
