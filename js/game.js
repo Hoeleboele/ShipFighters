@@ -2,6 +2,7 @@
   'use strict';
 
   const BASE_CP = 3;
+  const DEFAULT_CP_PER_ROUND = 1;
   const MAX_HISTORY = 30;
   const { clone, uid } = WHQ.util;
   const { findBuilding, findUnit, allAbilities, normalizeFaction, pruneArmy, DEFAULT_ARMY_SUPPLY, DEFAULT_UNIT_SUPPLY } = WHQ.model;
@@ -22,13 +23,16 @@
     return u;
   }
 
+  // CP resets each round to the starting CP plus the per-round increase for every round played.
   function cpFor(state) {
-    return Number.isFinite(state.cpPerRound) ? state.cpPerRound : BASE_CP;
+    const start = Number.isFinite(state.startCp) ? state.startCp : BASE_CP;
+    const perRound = Number.isFinite(state.cpPerRound) ? state.cpPerRound : 0;
+    return start + (state.round - 1) * perRound;
   }
 
-  function cpSetting(value) {
+  function cpSetting(value, fallback) {
     const n = Math.floor(Number(value));
-    return Number.isFinite(n) ? Math.min(99, Math.max(0, n)) : BASE_CP;
+    return Number.isFinite(n) ? Math.min(99, Math.max(0, n)) : fallback;
   }
 
   function spend(state) {
@@ -80,8 +84,9 @@
       faction,
       army,
       round: 1,
-      cp: cpSetting(options.startCp ?? BASE_CP),
-      cpPerRound: cpSetting(options.cpPerRound ?? BASE_CP),
+      cp: cpSetting(options.startCp ?? BASE_CP, BASE_CP),
+      startCp: cpSetting(options.startCp ?? BASE_CP, BASE_CP),
+      cpPerRound: cpSetting(options.cpPerRound ?? DEFAULT_CP_PER_ROUND, DEFAULT_CP_PER_ROUND),
       buildings: army.entries.map((e) => ({
         entryId: e.id,
         buildingId: e.buildingId,
@@ -163,6 +168,7 @@
 
   WHQ.game = {
     BASE_CP,
+    DEFAULT_CP_PER_ROUND,
     newGame,
     cpFor,
     supplyFor,

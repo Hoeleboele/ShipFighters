@@ -23,7 +23,7 @@
       </article>` : ''}
       <div class="grid">
         <label class="field"><span>Starting CP</span><input id="start-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.BASE_CP}"></label>
-        <label class="field"><span>CP per round</span><input id="round-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.BASE_CP}"></label>
+        <label class="field"><span>Extra CP each round</span><input id="round-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.DEFAULT_CP_PER_ROUND}"></label>
       </div>
       <p class="muted center">Choose an army of <strong>${esc(faction.name)}</strong></p>
       <section class="list">
