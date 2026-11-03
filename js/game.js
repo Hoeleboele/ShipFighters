@@ -3,6 +3,7 @@
 
   const BASE_CP = 3;
   const DEFAULT_CP_PER_ROUND = 1;
+  const DEFAULT_SUPPLY_PER_ROUND = 1;
   const MAX_HISTORY = 30;
   const { clone, uid } = WHQ.util;
   const { findBuilding, findUnit, allAbilities, normalizeFaction, pruneArmy, DEFAULT_ARMY_SUPPLY, DEFAULT_UNIT_SUPPLY } = WHQ.model;
@@ -47,7 +48,10 @@
 
   // Supply is derived from units/buildings, so undo and slain units restore it automatically.
   function supplyFor(state) {
-    const base = Number.isFinite(state.army.supply) ? state.army.supply : DEFAULT_ARMY_SUPPLY;
+    const start = Number.isFinite(state.startSupply) ? state.startSupply
+      : Number.isFinite(state.army.supply) ? state.army.supply : DEFAULT_ARMY_SUPPLY;
+    const perRound = Number.isFinite(state.supplyPerRound) ? state.supplyPerRound : 0;
+    const base = start + (state.round - 1) * perRound;
     return state.buildings
       .filter((b) => b.built)
       .reduce((sum, b) => sum + (findBuilding(state.faction, b.buildingId)?.supplyBonus || 0), base);
@@ -87,6 +91,8 @@
       cp: cpSetting(options.startCp ?? BASE_CP, BASE_CP),
       startCp: cpSetting(options.startCp ?? BASE_CP, BASE_CP),
       cpPerRound: cpSetting(options.cpPerRound ?? DEFAULT_CP_PER_ROUND, DEFAULT_CP_PER_ROUND),
+      startSupply: cpSetting(options.startSupply ?? DEFAULT_ARMY_SUPPLY, DEFAULT_ARMY_SUPPLY),
+      supplyPerRound: cpSetting(options.supplyPerRound ?? DEFAULT_SUPPLY_PER_ROUND, DEFAULT_SUPPLY_PER_ROUND),
       buildings: army.entries.map((e) => ({
         entryId: e.id,
         buildingId: e.buildingId,
@@ -179,6 +185,7 @@
   WHQ.game = {
     BASE_CP,
     DEFAULT_CP_PER_ROUND,
+    DEFAULT_SUPPLY_PER_ROUND,
     newGame,
     cpFor,
     supplyFor,

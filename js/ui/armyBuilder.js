@@ -23,7 +23,6 @@
       <section class="form grid">
         <label class="field"><span>Army name</span><input id="army-name" type="text" maxlength="80" value="${esc(draft.name)}"></label>
         <label class="field"><span>Point budget</span><input id="army-budget" type="number" inputmode="numeric" min="0" max="99999" value="${draft.budget}"></label>
-        <label class="field"><span>Starting supply</span><input id="army-supply" type="number" inputmode="numeric" min="0" max="999" value="${draft.supply}"></label>
       </section>
       <div id="dyn"></div>
       <div class="savebar">
@@ -102,8 +101,6 @@
       } else if (ev.target.id === 'army-budget') {
         draft.budget = int(ev.target.value, 0, 99999, 0);
         render();
-      } else if (ev.target.id === 'army-supply') {
-        draft.supply = int(ev.target.value, 0, 999, 0);
       }
     });
 

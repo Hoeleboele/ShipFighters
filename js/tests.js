@@ -128,12 +128,12 @@
     eq(WHQ.model.sharedAbilityUsage(faction, 's3'), 1);
   });
 
-  test('supply defaults', () => {
-    eq(WHQ.model.newArmy('f').supply, 7);
+  test('supply defaults; armies no longer carry supply', () => {
+    eq(WHQ.model.newArmy('f').supply, undefined);
     eq(WHQ.model.newUnit().supply, 1);
     eq(WHQ.model.newBuilding().supplyBonus, 0);
     const { faction } = fixture();
-    eq(WHQ.model.pruneArmy({ id: 'a', factionId: 'f1', name: 'Old', budget: 100, entries: [] }, faction).supply, 7);
+    eq(WHQ.model.pruneArmy({ id: 'a', factionId: 'f1', name: 'Old', budget: 100, supply: 12, entries: [] }, faction).supply, undefined);
   });
 
   test('pruneArmy drops removed buildings and units', () => {
@@ -237,8 +237,7 @@
   });
 
   test('activateUnits spends 1 CP per ready unit, skipping activated and dead', () => {
-    let s = startGame({ startCp: 9, cpPerRound: 1 });
-    s = { ...s, army: { ...s.army, supply: 20 } };
+    let s = startGame({ startCp: 9, cpPerRound: 1, startSupply: 20 });
     s = WHQ.game.build(s, 'eB');
     s = WHQ.game.createUnit(s, 'eHq', 0);
     s = WHQ.game.createUnit(s, 'eB', 0);
@@ -333,8 +332,7 @@
   });
 
   test('supply: creating units uses supply, short supply blocks without spending CP', () => {
-    let s = startGame();
-    s = { ...s, army: { ...s.army, supply: 3 } };
+    let s = startGame({ startCp: 4, cpPerRound: 1, startSupply: 3 });
     s = WHQ.game.createUnit(s, 'eHq', 0); // Knight, 3 supply
     eq(WHQ.game.supplyUsed(s), 3);
     eq(WHQ.game.supplyLeft(s), 0);
@@ -354,19 +352,30 @@
     eq(WHQ.game.supplyLeft(s), 4);
   });
 
+  test('supply: increases each round by the chosen amount, undo reverts it', () => {
+    let s = startGame({ startCp: 4, cpPerRound: 1, startSupply: 5, supplyPerRound: 2 });
+    eq(s.supplyPerRound, 2);
+    eq(WHQ.game.supplyFor(s), 5);
+    s = WHQ.game.nextRound(s);
+    eq(WHQ.game.supplyFor(s), 7);
+    s = WHQ.game.nextRound(s);
+    eq(WHQ.game.supplyFor(s), 9);
+    s = WHQ.game.undo(s);
+    eq(WHQ.game.supplyFor(s), 7);
+    eq(startGame({}).startSupply, WHQ.model.DEFAULT_ARMY_SUPPLY);
+    eq(startGame({}).supplyPerRound, WHQ.game.DEFAULT_SUPPLY_PER_ROUND);
+  });
+
   test('supply left never goes below zero', () => {
     let s = startGame();
     s = WHQ.game.createUnit(s, 'eHq', 0);
-    s = { ...s, army: { ...s.army, supply: 0 } };
+    s = { ...s, startSupply: 0 };
     eq(WHQ.game.supplyLeft(s), 0);
   });
 
-  test('new game fills supply defaults for old data', () => {
-    const { faction, army } = fixture();
-    delete army.supply;
-    army.entries.push({ id: 'eHq', buildingId: 'hq', unitPicks: ['u1'] });
-    const s = WHQ.game.newGame(faction, army);
-    eq(s.army.supply, 7);
+  test('old in-progress games without startSupply fall back to army supply', () => {
+    const s = { ...startGame(), startSupply: undefined, army: { ...startGame().army, supply: 12 } };
+    eq(WHQ.game.supplyFor(s), 12);
   });
 
   // --- share ---

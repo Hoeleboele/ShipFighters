@@ -24,6 +24,8 @@
       <div class="grid">
         <label class="field"><span>Starting CP</span><input id="start-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.BASE_CP}"></label>
         <label class="field"><span>Extra CP each round</span><input id="round-cp" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.DEFAULT_CP_PER_ROUND}"></label>
+        <label class="field"><span>Starting supply</span><input id="start-supply" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.model.DEFAULT_ARMY_SUPPLY}"></label>
+        <label class="field"><span>Extra supply each round</span><input id="round-supply" type="number" inputmode="numeric" min="0" max="99" value="${WHQ.game.DEFAULT_SUPPLY_PER_ROUND}"></label>
       </div>
       <p class="muted center">Choose an army of <strong>${esc(faction.name)}</strong></p>
       <section class="list">
@@ -32,7 +34,7 @@
           return `<article class="card">
             <div class="card-head">
               <h2>${esc(a.name)}</h2>
-              <span class="muted">${rules.cost(a, faction)} / ${a.budget} pts &middot; ${Number.isFinite(a.supply) ? a.supply : WHQ.model.DEFAULT_ARMY_SUPPLY} supply</span>
+              <span class="muted">${rules.cost(a, faction)} / ${a.budget} pts</span>
             </div>
             ${errors.length
               ? `<ul class="errors">${errors.map((e) => `<li>${esc(e)}</li>`).join('')}</ul>
@@ -51,6 +53,8 @@
       storage.saveGame(WHQ.game.newGame(faction, army, {
         startCp: el.querySelector('#start-cp').value,
         cpPerRound: el.querySelector('#round-cp').value,
+        startSupply: el.querySelector('#start-supply').value,
+        supplyPerRound: el.querySelector('#round-supply').value,
       }));
       ui.go('#/game');
     });

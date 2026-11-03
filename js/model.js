@@ -164,7 +164,8 @@
           : e.unitPicks.filter((id) => b.eligibleUnitIds.includes(id)).slice(0, b.units);
         return { ...e, unitPicks: picks };
       });
-    return { ...army, supply: int(army.supply, 0, 999, DEFAULT_ARMY_SUPPLY), entries };
+    const { supply, ...rest } = army;
+    return { ...rest, entries };
   }
 
   WHQ.model = {
@@ -196,7 +197,7 @@
     },
 
     newArmy(factionId) {
-      return { id: uid(), factionId, name: '', budget: 100, supply: DEFAULT_ARMY_SUPPLY, entries: [] };
+      return { id: uid(), factionId, name: '', budget: 100, entries: [] };
     },
 
     newEntry(buildingId) {
